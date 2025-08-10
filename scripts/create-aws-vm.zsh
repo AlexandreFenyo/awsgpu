@@ -74,6 +74,16 @@ fi
 
 echo "VPC par défaut : $VPC_ID"
 
+# Vérifier s'il existe déjà une instance dont le nom commence par le préfixe
+echo "Recherche d'instances existantes avec le préfixe $VM_NAME_PREFIX..."
+EXISTING_INSTANCES="$(aws ec2 describe-instances --region "$AWS_REGION" --filters "Name=tag:Name,Values=${VM_NAME_PREFIX}*" "Name=instance-state-name,Values=pending,running,stopping,stopped" --query 'Reservations[].Instances[].InstanceId' --output text || true)"
+if [[ -n "$EXISTING_INSTANCES" && "$EXISTING_INSTANCES" != "None" ]]; then
+  echo "Une instance existante avec un nom commençant par $VM_NAME_PREFIX a été trouvée :"
+  echo "$EXISTING_INSTANCES"
+  echo "Aucune action effectuée."
+  exit 0
+fi
+
 # Créer (ou réutiliser) le security group
 echo "Vérification du security group $SG_NAME..."
 SG_ID="$(aws ec2 describe-security-groups --region "$AWS_REGION" --filters Name=group-name,Values="$SG_NAME" Name=vpc-id,Values="$VPC_ID" --query 'SecurityGroups[0].GroupId' --output text || true)"
