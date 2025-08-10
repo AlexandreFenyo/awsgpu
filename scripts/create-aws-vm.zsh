@@ -40,6 +40,7 @@ SG_NAME="${SG_NAME_PREFIX}-${timestamp}"
 
 CREATED_SG_ID=""
 CREATED_INSTANCE_ID=""
+CREATED_SUBNET_ID=""
 
 cleanup_on_error() {
   local rc=$?
@@ -49,6 +50,10 @@ cleanup_on_error() {
       echo "Suppression de l'instance $CREATED_INSTANCE_ID..."
       aws ec2 terminate-instances --instance-ids "$CREATED_INSTANCE_ID" --region "$AWS_REGION" >/dev/null 2>&1 || true
       aws ec2 wait instance-terminated --instance-ids "$CREATED_INSTANCE_ID" --region "$AWS_REGION" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "$CREATED_SUBNET_ID" ]]; then
+      echo "Suppression du subnet $CREATED_SUBNET_ID..."
+      aws ec2 delete-subnet --subnet-id "$CREATED_SUBNET_ID" --region "$AWS_REGION" >/dev/null 2>&1 || true
     fi
     if [[ -n "$CREATED_SG_ID" ]]; then
       echo "Suppression du security group $CREATED_SG_ID..."
@@ -84,8 +89,8 @@ fi
 
 # Autoriser tout le trafic entrant et sortant (IPv4 + IPv6)
 echo "Autorisation du trafic (ingress + egress) pour $SG_ID..."
-aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --ip-permissions IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}] --region "$AWS_REGION" || true
-aws ec2 authorize-security-group-egress --group-id "$SG_ID" --ip-permissions IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}] --region "$AWS_REGION" || true
+aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --ip-permissions 'IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}]' --region "$AWS_REGION" || true
+aws ec2 authorize-security-group-egress --group-id "$SG_ID" --ip-permissions 'IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}]' --region "$AWS_REGION" || true
 
 # Trouver l'AMI si AMI_ID non fourni
 if [[ -z "${AMI_ID:-}" ]]; then
@@ -103,9 +108,23 @@ fi
 
 echo "AMI choisie : $AMI_ID"
 
-# Lancer l'instance
-echo "Lancement de l'instance ($INSTANCE_TYPE) avec la key $KEY_NAME..."
-INSTANCE_ID="$(aws ec2 run-instances --region "$AWS_REGION" --image-id "$AMI_ID" --count 1 --instance-type "$INSTANCE_TYPE" --key-name "$KEY_NAME" --security-group-ids "$SG_ID" --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$VM_NAME}]" --query 'Instances[0].InstanceId' --output text)"
+# Lancer l'instance (choix ou création d'un subnet si nécessaire)
+echo "Détermination d'un subnet dans le VPC $VPC_ID..."
+SUBNET_ID="$(aws ec2 describe-subnets --region "$AWS_REGION" --filters Name=vpc-id,Values="$VPC_ID" --query 'Subnets[0].SubnetId' --output text || true)"
+if [[ -z "$SUBNET_ID" || "$SUBNET_ID" == "None" ]]; then
+  echo "Aucun subnet trouvé dans le VPC $VPC_ID. Création d'un subnet..."
+  VPC_CIDR="$(aws ec2 describe-vpcs --vpc-ids "$VPC_ID" --region "$AWS_REGION" --query 'Vpcs[0].CidrBlock' --output text)"
+  # Construire un CIDR /24 à partir du CIDR du VPC en prenant les trois premiers octets
+  SUBNET_CIDR="$(echo "$VPC_CIDR" | awk -F'/' '{print $1}' | awk -F. '{print $1"."$2"."$3".0/24"}')"
+  AZ="$(aws ec2 describe-availability-zones --region "$AWS_REGION" --query 'AvailabilityZones[0].ZoneName' --output text)"
+  SUBNET_ID="$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block "$SUBNET_CIDR" --availability-zone "$AZ" --region "$AWS_REGION" --query 'Subnet.SubnetId' --output text)"
+  CREATED_SUBNET_ID="$SUBNET_ID"
+  echo "Subnet créé : $SUBNET_ID ($SUBNET_CIDR) dans AZ $AZ"
+  aws ec2 modify-subnet-attribute --subnet-id "$SUBNET_ID" --map-public-ip-on-launch --region "$AWS_REGION"
+fi
+
+echo "Lancement de l'instance ($INSTANCE_TYPE) avec la key $KEY_NAME dans le subnet $SUBNET_ID..."
+INSTANCE_ID="$(aws ec2 run-instances --region "$AWS_REGION" --image-id "$AMI_ID" --count 1 --instance-type "$INSTANCE_TYPE" --key-name "$KEY_NAME" --security-group-ids "$SG_ID" --subnet-id "$SUBNET_ID" --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$VM_NAME}]" --query 'Instances[0].InstanceId' --output text)"
 if [[ -z "$INSTANCE_ID" || "$INSTANCE_ID" == "None" ]]; then
   echo "Erreur : lancement de l'instance a échoué" >&2
   exit 1
