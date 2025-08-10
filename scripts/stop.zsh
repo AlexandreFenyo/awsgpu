@@ -1,4 +1,5 @@
 #!/usr/bin/env zsh
+# Created by AF.
 # Arrête/termine les instances AWS créées par scripts/create-aws-vm.zsh
 #
 # Usage:
