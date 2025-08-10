@@ -99,14 +99,14 @@ fi
 echo "VPC par défaut : $VPC_ID"
 
 # Vérifier s'il existe déjà une instance dont le nom commence par le préfixe
-# On considère désormais toutes les instances (quel que soit leur état) comme bloquantes.
-echo "Recherche d'instances existantes avec le préfixe $VM_NAME_PREFIX (tous états)..."
-if ! EXISTING_INSTANCES="$(aws ec2 describe-instances --region "$AWS_REGION" --filters "Name=tag:Name,Values=${VM_NAME_PREFIX}*" --query 'Reservations[].Instances[].InstanceId' --output text)"; then
+# On considère toutes les instances comme bloquantes, sauf celles en état "terminated".
+echo "Recherche d'instances existantes avec le préfixe $VM_NAME_PREFIX (tous états sauf 'terminated')..."
+if ! EXISTING_INSTANCES="$(aws ec2 describe-instances --region "$AWS_REGION" --filters "Name=tag:Name,Values=${VM_NAME_PREFIX}*" --query 'Reservations[].Instances[?State.Name!=`terminated`].InstanceId' --output text)"; then
   echo "Erreur: échec de la requête AWS lors de la vérification des instances existantes." >&2
   exit 1
 fi
 if [[ -n "$EXISTING_INSTANCES" && "$EXISTING_INSTANCES" != "None" ]]; then
-  echo "Une instance existante (quel que soit son état) avec un nom commençant par $VM_NAME_PREFIX a été trouvée :"
+  echo "Une instance existante (état ≠ terminated) avec un nom commençant par $VM_NAME_PREFIX a été trouvée :"
   echo "$EXISTING_INSTANCES"
   echo "Aucune action effectuée."
   exit 0
