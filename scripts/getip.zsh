@@ -17,7 +17,9 @@
 #   chmod +x scripts/getip.zsh
 #   ./scripts/getip.zsh --prefix awsgpu --region eu-west-3
 #
-# Dépendances: aws CLI v2 et python3 (pour parser la sortie JSON).
+# Dépendances: aws CLI v2.
+# Remarque: le parsing JSON a été remplacé par l'utilisation de --query/--output text
+# et du traitement shell; python n'est plus requis.
 
 #!/usr/bin/env zsh
 set -euo pipefail
@@ -95,87 +97,64 @@ main() {
   done
 
   require_cmd aws
-  require_cmd python3
 
   # Rechercher les instances dont le tag Name commence par le préfixe
   # On reprend les états utilisés par create-aws-vm.zsh (pending,running,stopping,stopped)
+  # On utilise --query pour récupérer directement les champs utiles en sortie "text"
   local aws_out
   if ! aws_out="$(aws ec2 describe-instances \
       --region "$AWS_REGION" \
       --filters "Name=tag:Name,Values=${VM_NAME_PREFIX}*" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
-      --output json)"; then
+      --query 'Reservations[].Instances[].[Tags[?Key==`Name`]|[0].Value, InstanceId, State.Name, PublicIpAddress, PrivateIpAddress]' \
+      --output text)"; then
     echo "Erreur: échec de la requête AWS. Vérifiez vos credentials et la région." >&2
     return 3
   fi
 
-  # Si aucune instance trouvée, la sortie JSON contient Reservations=[]
-  if python3 - <<'PY' <<<"$aws_out"
-import sys, json
-data = json.load(sys.stdin)
-# Vérifier s'il y a au moins une instance
-for r in data.get("Reservations", []):
-    if r.get("Instances"):
-        sys.exit(0)
-# aucune instance
-sys.exit(1)
-PY
-  then
-    :
-  else
+  # Si aucune instance trouvée, aws_out sera vide
+  if [[ -z "${aws_out:-}" ]]; then
     echo "Aucune instance trouvée pour le préfixe '${VM_NAME_PREFIX}' dans la région ${AWS_REGION}."
     return 0
   fi
 
   # Parser et afficher: Name, InstanceId, State, IP (publique si disponible sinon privée)
   printf "%s\t%s\t%s\t%s\n" "NAME" "INSTANCE_ID" "STATE" "IP"
-  python3 - <<'PY' <<<"$aws_out"
-import sys, json
-data = json.load(sys.stdin)
-for r in data.get("Reservations", []):
-    for i in r.get("Instances", []):
-        inst_id = i.get("InstanceId", "")
-        state = i.get("State", {}).get("Name", "")
-        pub = i.get("PublicIpAddress")
-        priv = i.get("PrivateIpAddress")
-        name = ""
-        for t in i.get("Tags", []):
-            if t.get("Key") == "Name":
-                name = t.get("Value", "")
-                break
-        # Choix de l'IP: publique si présente sinon privée, sinon vide
-        ip = pub if pub else priv if priv else ""
-        print("\t".join([name or "-", inst_id or "-", state or "-", ip or "-"]))
-PY
+  # aws_out est en sortie text : Name<TAB>InstanceId<TAB>State<TAB>PublicIp<TAB>PrivateIp
+  # On lit ces champs et on choisit l'IP publique si présente sinon la privée.
+  echo "$aws_out" | while IFS=$'\t' read -r name inst_id state pub priv; do
+    ip="$pub"
+    if [[ -z "${ip:-}" ]]; then
+      ip="$priv"
+    fi
+    # Normaliser les valeurs vides en "-"
+    [[ -z "${name:-}" ]] && name="-"
+    [[ -z "${inst_id:-}" ]] && inst_id="-"
+    [[ -z "${state:-}" ]] && state="-"
+    [[ -z "${ip:-}" ]] && ip="-"
+    printf "%s\t%s\t%s\t%s\n" "$name" "$inst_id" "$state" "$ip"
+  done
 
   # Si --public-only, filtrer pour n'afficher que celles ayant une IP publique
   if [[ $PUBLIC_ONLY -eq 1 ]]; then
-    # Réexécuter la même requête mais ne garder que les lignes avec une IP publique
     echo ""
     echo "Instances avec IP publique:"
     echo "NAME	INSTANCE_ID	STATE	PUBLIC_IP"
-    python3 - <<'PY' <<<"$aws_out"
-import sys, json
-data = json.load(sys.stdin)
-for r in data.get("Reservations", []):
-    for i in r.get("Instances", []):
-        pub = i.get("PublicIpAddress")
-        if not pub:
-            continue
-        inst_id = i.get("InstanceId", "")
-        state = i.get("State", {}).get("Name", "")
-        name = ""
-        for t in i.get("Tags", []):
-            if t.get("Key") == "Name":
-                name = t.get("Value", "")
-                break
-        print("\t".join([name or "-", inst_id or "-", state or "-", pub]))
-PY
+    echo "$aws_out" | while IFS=$'\t' read -r name inst_id state pub priv; do
+      if [[ -n "${pub:-}" ]]; then
+        [[ -z "${name:-}" ]] && name="-"
+        [[ -z "${inst_id:-}" ]] && inst_id="-"
+        [[ -z "${state:-}" ]] && state="-"
+        printf "%s\t%s\t%s\t%s\n" "$name" "$inst_id" "$state" "$pub"
+      fi
+    done
   fi
 
   return 0
 }
 
-# Si le script est exécuté directement, lance main.
-if [[ "${ZSH_EVAL_CONTEXT:-}" == *file* || "${ZSH_EVAL_CONTEXT:-}" == *toplevel* ]]; then
+# Si le script est exécuté directement (ou si ZSH_EVAL_CONTEXT est absent), lance main.
+# Si le fichier est "sourcé", ZSH_EVAL_CONTEXT est normalement défini et l'exécution
+# sera évitée; cela conserve le comportement attendu lors du sourcing.
+if [[ -z "${ZSH_EVAL_CONTEXT:-}" || "${ZSH_EVAL_CONTEXT:-}" == *file* || "${ZSH_EVAL_CONTEXT:-}" == *toplevel* ]]; then
   main "$@"
 fi
