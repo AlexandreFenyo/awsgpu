@@ -3,7 +3,7 @@
 # Le script lit les variables depuis scripts/aws_vm_config.env (si présent).
 # Par défaut :
 #   - région : eu-west-3
-#   - AMI : dernier "Deep Learning AMI ... PyTorch 2.7" disponible
+#   - AMI : dernier "Deep Learning AMI ... PyTorch 2.7" sous Ubuntu disponible
 #   - instance type : g4dn.xlarge
 # La paire de clés (KEY_NAME) doit être définie dans le fichier de config ou en variable d'environnement.
 #
@@ -24,7 +24,7 @@ fi
 # Valeurs par défaut
 : "${AWS_REGION:=eu-west-3}"
 : "${INSTANCE_TYPE:=g4dn.xlarge}"
-: "${AMI_NAME_PATTERN:=Deep Learning AMI*PyTorch 2.7*}"
+: "${AMI_NAME_PATTERN:=Deep Learning AMI*PyTorch 2.7*Ubuntu*}"
 : "${SG_NAME_PREFIX:=awsgpu-sg}"
 : "${VM_NAME_PREFIX:=awsgpu}"
 
@@ -144,7 +144,7 @@ fi
 
 # Trouver l'AMI si AMI_ID non fourni
 if [[ -z "${AMI_ID:-}" ]]; then
-  echo "Recherche de l'AMI correspondant au pattern : $AMI_NAME_PATTERN"
+    echo "Recherche de l'AMI correspondant au pattern : $AMI_NAME_PATTERN"
   AMI_ID="$(aws ec2 describe-images --region "$AWS_REGION" --owners amazon --filters Name=name,Values="$AMI_NAME_PATTERN" Name=state,Values=available --query 'Images | sort_by(@,&CreationDate)[-1].ImageId' --output text || true)"
   if [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]]; then
     # fallback : sans propriétaire
