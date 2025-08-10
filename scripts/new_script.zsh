@@ -1,11 +1,11 @@
 # Ce fichier ajoute un nouveau script ZSH dans le dossier scripts/.
 # Modifications proposées :
-# 1) Création de scripts/new_script.zsh (script zsh autonome).
+# 1) Création de scripts/getip.zsh (script zsh autonome).
 # 2) Le fichier contient une aide, un exemple d'option et des instructions pour l'exécuter.
 #
 # Commandes recommandées pour tester :
-#   chmod +x scripts/new_script.zsh
-#   ./scripts/new_script.zsh --help
+#   chmod +x scripts/getip.zsh
+#   ./scripts/getip.zsh --help
 #
 # NOTE: Ce fichier est autonome — il n'édite aucun fichier existant.
 
@@ -14,7 +14,7 @@ set -euo pipefail
 
 print_help() {
   cat <<'EOF'
-Usage: new_script.zsh [--help] [--example ARG]
+Usage: getip.zsh [--help] [--example ARG]
 
 Description:
   Exemple de script ZSH ajouté dans scripts/.
@@ -40,7 +40,7 @@ main() {
     return 0
   fi
 
-  echo "Bonjour depuis scripts/new_script.zsh"
+  echo "Bonjour depuis scripts/getip.zsh"
 }
 
 # Si le script est exécuté directement, lance main.
