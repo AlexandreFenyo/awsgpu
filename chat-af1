@@ -1,0 +1,4 @@
+/drop
+/add       scripts/getip.zsh
+/read-only scripts/aws_vm_config.env
+/read-only scripts/create-aws-vm.zsh
