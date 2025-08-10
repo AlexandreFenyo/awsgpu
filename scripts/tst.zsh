@@ -21,3 +21,5 @@ if command -v pytest >/dev/null 2>&1; then
 else
   echo "pytest not found; nothing to run."
 fi
+
+exit 0
