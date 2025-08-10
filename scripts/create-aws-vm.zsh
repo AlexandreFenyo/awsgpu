@@ -28,8 +28,32 @@ fi
 : "${SG_NAME_PREFIX:=awsgpu-sg}"
 : "${VM_NAME_PREFIX:=awsgpu}"
 
-# KEY_NAME doit être fourni
-if [[ -z "${KEY_NAME:-}" ]]; then
+# Mode dry-run (ne crée rien chez AWS)
+DRY_RUN=0
+
+# Parse simple args (seul --dry-run|-n est géré)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run|-n)
+      DRY_RUN=1
+      shift
+      ;;
+    --help|-h)
+      echo "Usage: $0 [--dry-run|-n]"
+      echo ""
+      echo "Options:"
+      echo "  --dry-run, -n    Ne crée aucun objet chez AWS; affiche ce qui serait fait."
+      exit 0
+      ;;
+    *)
+      # autres arguments ignorés (le script est non interactif)
+      break
+      ;;
+  esac
+done
+
+# KEY_NAME doit être fourni (sauf en dry-run)
+if [[ $DRY_RUN -eq 0 && -z "${KEY_NAME:-}" ]]; then
   echo "Erreur: KEY_NAME n'est pas défini. Mettez-le dans $CONFIG_FILE ou exportez KEY_NAME." >&2
   exit 1
 fi
@@ -91,16 +115,28 @@ if [[ -n "$SG_ID" && "$SG_ID" != "None" ]]; then
   echo "Security group existant trouvé : $SG_ID"
   CREATED_SG_ID=""
 else
-  echo "Création du security group $SG_NAME..."
-  SG_ID="$(aws ec2 create-security-group --group-name "$SG_NAME" --description "All traffic allowed (created by create-aws-vm.zsh)" --vpc-id "$VPC_ID" --region "$AWS_REGION" --query 'GroupId' --output text)"
-  CREATED_SG_ID="$SG_ID"
-  echo "Security group créé : $SG_ID"
+  if [[ $DRY_RUN -eq 0 ]]; then
+    echo "Création du security group $SG_NAME..."
+    SG_ID="$(aws ec2 create-security-group --group-name "$SG_NAME" --description "All traffic allowed (created by create-aws-vm.zsh)" --vpc-id "$VPC_ID" --region "$AWS_REGION" --query 'GroupId' --output text)"
+    CREATED_SG_ID="$SG_ID"
+    echo "Security group créé : $SG_ID"
+  else
+    echo "[DRY-RUN] would create security group: $SG_NAME in VPC $VPC_ID"
+    # Ne pas renseigner CREATED_SG_ID pour éviter tout cleanup
+    CREATED_SG_ID=""
+    SG_ID="DRY-RUN-SG"
+  fi
 fi
 
 # Autoriser tout le trafic entrant et sortant (IPv4 + IPv6)
 echo "Autorisation du trafic (ingress + egress) pour $SG_ID..."
-aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --ip-permissions 'IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}]' --region "$AWS_REGION" || true
-aws ec2 authorize-security-group-egress --group-id "$SG_ID" --ip-permissions 'IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}]' --region "$AWS_REGION" || true
+if [[ $DRY_RUN -eq 0 ]]; then
+  aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --ip-permissions 'IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}]' --region "$AWS_REGION" || true
+  aws ec2 authorize-security-group-egress --group-id "$SG_ID" --ip-permissions 'IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}]' --region "$AWS_REGION" || true
+else
+  echo "[DRY-RUN] would: aws ec2 authorize-security-group-ingress --group-id $SG_ID --ip-permissions 'IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}]' --region $AWS_REGION"
+  echo "[DRY-RUN] would: aws ec2 authorize-security-group-egress --group-id $SG_ID --ip-permissions 'IpProtocol=-1,IpRanges=[{CidrIp=0.0.0.0/0}],Ipv6Ranges=[{CidrIpv6=::/0}]' --region $AWS_REGION"
+fi
 
 # Trouver l'AMI si AMI_ID non fourni
 if [[ -z "${AMI_ID:-}" ]]; then
@@ -127,31 +163,52 @@ if [[ -z "$SUBNET_ID" || "$SUBNET_ID" == "None" ]]; then
   # Construire un CIDR /24 à partir du CIDR du VPC en prenant les trois premiers octets
   SUBNET_CIDR="$(echo "$VPC_CIDR" | awk -F'/' '{print $1}' | awk -F. '{print $1"."$2"."$3".0/24"}')"
   AZ="$(aws ec2 describe-availability-zones --region "$AWS_REGION" --query 'AvailabilityZones[0].ZoneName' --output text)"
-  SUBNET_ID="$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block "$SUBNET_CIDR" --availability-zone "$AZ" --region "$AWS_REGION" --query 'Subnet.SubnetId' --output text)"
-  CREATED_SUBNET_ID="$SUBNET_ID"
-  echo "Subnet créé : $SUBNET_ID ($SUBNET_CIDR) dans AZ $AZ"
-  aws ec2 modify-subnet-attribute --subnet-id "$SUBNET_ID" --map-public-ip-on-launch --region "$AWS_REGION"
+  if [[ $DRY_RUN -eq 0 ]]; then
+    SUBNET_ID="$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block "$SUBNET_CIDR" --availability-zone "$AZ" --region "$AWS_REGION" --query 'Subnet.SubnetId' --output text)"
+    CREATED_SUBNET_ID="$SUBNET_ID"
+    echo "Subnet créé : $SUBNET_ID ($SUBNET_CIDR) dans AZ $AZ"
+    aws ec2 modify-subnet-attribute --subnet-id "$SUBNET_ID" --map-public-ip-on-launch --region "$AWS_REGION"
+  else
+    echo "[DRY-RUN] would create subnet in VPC $VPC_ID with CIDR $SUBNET_CIDR in AZ $AZ"
+    CREATED_SUBNET_ID=""
+    SUBNET_ID="DRY-RUN-SUBNET"
+  fi
 fi
 
-echo "Lancement de l'instance ($INSTANCE_TYPE) avec la key $KEY_NAME dans le subnet $SUBNET_ID..."
-INSTANCE_ID="$(aws ec2 run-instances --region "$AWS_REGION" --image-id "$AMI_ID" --count 1 --instance-type "$INSTANCE_TYPE" --key-name "$KEY_NAME" --security-group-ids "$SG_ID" --subnet-id "$SUBNET_ID" --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$VM_NAME}]" --query 'Instances[0].InstanceId' --output text)"
-if [[ -z "$INSTANCE_ID" || "$INSTANCE_ID" == "None" ]]; then
-  echo "Erreur : lancement de l'instance a échoué" >&2
-  exit 1
+echo "Lancement de l'instance ($INSTANCE_TYPE) avec la key ${KEY_NAME:-<no-key>} dans le subnet $SUBNET_ID..."
+if [[ $DRY_RUN -eq 0 ]]; then
+  INSTANCE_ID="$(aws ec2 run-instances --region "$AWS_REGION" --image-id "$AMI_ID" --count 1 --instance-type "$INSTANCE_TYPE" --key-name "$KEY_NAME" --security-group-ids "$SG_ID" --subnet-id "$SUBNET_ID" --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$VM_NAME}]" --query 'Instances[0].InstanceId' --output text)"
+  if [[ -z "$INSTANCE_ID" || "$INSTANCE_ID" == "None" ]]; then
+    echo "Erreur : lancement de l'instance a échoué" >&2
+    exit 1
+  fi
+  CREATED_INSTANCE_ID="$INSTANCE_ID"
+  echo "Instance lancée : $INSTANCE_ID"
+else
+  echo "[DRY-RUN] would run: aws ec2 run-instances --region $AWS_REGION --image-id $AMI_ID --count 1 --instance-type $INSTANCE_TYPE --key-name ${KEY_NAME:-<not-set>} --security-group-ids $SG_ID --subnet-id $SUBNET_ID --tag-specifications ResourceType=instance,Tags=[{Key=Name,Value=$VM_NAME}]"
+  CREATED_INSTANCE_ID=""
 fi
-CREATED_INSTANCE_ID="$INSTANCE_ID"
-echo "Instance lancée : $INSTANCE_ID"
 
-# Attendre que l'instance soit running
-echo "Attente du passage en état 'running'..."
-aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
+if [[ $DRY_RUN -eq 0 ]]; then
+  # Attendre que l'instance soit running
+  echo "Attente du passage en état 'running'..."
+  aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
 
-# Récupérer IP publique
-PUBLIC_IP="$(aws ec2 describe-instances --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
-echo "Instance $INSTANCE_ID est running."
-echo "Nom : $VM_NAME"
-echo "Security Group : $SG_ID"
-echo "IP publique : $PUBLIC_IP"
+  # Récupérer IP publique
+  PUBLIC_IP="$(aws ec2 describe-instances --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
+  echo "Instance $INSTANCE_ID est running."
+  echo "Nom : $VM_NAME"
+  echo "Security Group : $SG_ID"
+  echo "IP publique : $PUBLIC_IP"
+else
+  echo "[DRY-RUN] instance would be created with:"
+  echo "  AMI: $AMI_ID"
+  echo "  INSTANCE_TYPE: $INSTANCE_TYPE"
+  echo "  KEY_NAME: ${KEY_NAME:-<not set>}"
+  echo "  SECURITY_GROUP: $SG_ID"
+  echo "  SUBNET: $SUBNET_ID"
+  echo "  NAME: $VM_NAME"
+fi
 
 # Succès, enlever le trap cleanup
 trap - EXIT
