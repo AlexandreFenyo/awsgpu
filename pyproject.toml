@@ -13,6 +13,8 @@ dependencies = [
 [tool.poetry]
 packages = [{include = "awsgpu", from = "src"}]
 
+[tool.poetry.scripts]
+parse-word = "awsgpu.parse_word:main"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
