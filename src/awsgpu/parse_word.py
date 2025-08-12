@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Parse a .docx file (python-docx) and print a plain-text representation to stdout.
+Additionally, produce a JSONL chunks file next to the input file suitable for
+creating embeddings / RAG.
 
 Behavior:
  - Accept a single positional argument: path to a .docx file.
@@ -10,6 +12,8 @@ Behavior:
  - Convert tables to text rows with " | " between cells.
  - Strip formatting; output only plain text.
  - Preserve the document reading order.
+ - Produce a <input>.chunks.jsonl file with one JSON object per chunk:
+     { "chunk_id": int, "text": str, "metadata": { "source": str, "headings": [...], "keywords": [...] }, "approx_tokens": int }
 
 Usage:
   parse-word.py document.docx
@@ -17,9 +21,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
 import sys
-from typing import Iterator, Union
+from collections import Counter
+from typing import Iterator, List, Tuple, Union
 
 try:
     from docx import Document
@@ -35,8 +42,6 @@ def iter_block_items(doc: Document) -> Iterator[Union[Paragraph, Table]]:
     """
     Yield Paragraph or Table objects in document order.
     """
-    # Access the document body element and iterate its children so that
-    # paragraphs and tables appear in the original order.
     body = doc.element.body
     for child in body.iterchildren():
         if child.tag.endswith("}p"):
@@ -51,7 +56,6 @@ _heading_re = re.compile(r"heading\s*(\d+)", re.IGNORECASE)
 def paragraph_is_list(paragraph: Paragraph) -> bool:
     """
     Heuristically detect whether a paragraph is part of a list.
-    Checks paragraph style name and numbering properties (if present).
     """
     style_name = ""
     try:
@@ -61,7 +65,6 @@ def paragraph_is_list(paragraph: Paragraph) -> bool:
     name = style_name.lower()
     if "list" in name or "bullet" in name or "number" in name:
         return True
-    # Try to detect numbering from the underlying XML (may not be present)
     try:
         pPr = getattr(paragraph._p, "pPr", None)
         if pPr is not None and getattr(pPr, "numPr", None) is not None:
@@ -81,6 +84,39 @@ def render_table(tbl: Table) -> str:
         cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
         lines.append(" | ".join(cells))
     return "\n".join(lines)
+
+
+def analyze_paragraph(paragraph: Paragraph) -> Tuple[str, str, int]:
+    """
+    Return (text, style_name, heading_level)
+    heading_level is 0 if not a heading.
+    """
+    text = paragraph.text.strip()
+    style_name = ""
+    try:
+        style_name = paragraph.style.name or ""
+    except Exception:
+        style_name = ""
+    # Heading detection
+    m = _heading_re.search(style_name)
+    if m:
+        try:
+            level = int(m.group(1))
+            level = max(1, min(6, level))
+        except Exception:
+            level = 1
+        return text, style_name, level
+    m2 = re.search(r"titre\s*(\d+)", style_name, re.IGNORECASE)
+    if m2:
+        try:
+            level = int(m2.group(1))
+            level = max(1, min(6, level))
+        except Exception:
+            level = 1
+        return text, style_name, level
+    if paragraph_is_list(paragraph):
+        return text, style_name, 0
+    return text, style_name, 0
 
 
 def render_paragraph(paragraph: Paragraph) -> str:
@@ -120,37 +156,172 @@ def render_paragraph(paragraph: Paragraph) -> str:
     return text
 
 
-def parse_docx_to_text(path: str) -> str:
+def parse_docx_to_blocks(path: str) -> List[Tuple[str, str, int]]:
     """
-    Parse the document and return a plain-text representation.
+    Parse the document and return a list of blocks.
+    Each block is a tuple (kind, text, heading_level) where kind is one of:
+      - "paragraph"
+      - "table"
+      - "heading" (treated as paragraph with heading_level>0)
     """
     doc = Document(path)
-    parts: list[str] = []
+    blocks: list[Tuple[str, str, int]] = []
     for block in iter_block_items(doc):
         if isinstance(block, Paragraph):
-            rendered = render_paragraph(block)
-            if rendered:
-                parts.append(rendered)
+            text, style_name, level = analyze_paragraph(block)
+            if not text:
+                continue
+            kind = "heading" if level > 0 else "paragraph"
+            blocks.append((kind, text, level))
         elif isinstance(block, Table):
             tbl_text = render_table(block)
             if tbl_text:
-                parts.append(tbl_text)
-    # Join with double newlines between blocks for readability
-    return "\n\n".join(parts)
+                blocks.append(("table", tbl_text, 0))
+    return blocks
+
+
+# Small stopword list to get keywords without extra dependencies
+_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "these", "those",
+    "are", "was", "were", "has", "have", "had", "but", "not",
+    "you", "your", "yours", "from", "they", "their", "them",
+    "a", "an", "in", "on", "of", "to", "is", "it", "as", "be",
+    "by", "or", "if", "we", "our", "us"
+}
+
+
+def approx_tokens_for_text(text: str) -> int:
+    """
+    Approximate number of tokens from number of words.
+    Rough heuristic: 1 token ~= 0.75 words => tokens ~= words / 0.75 = words * 1.333
+    """
+    words = re.findall(r"\w+", text)
+    return max(1, int(len(words) * 1.333))
+
+
+def extract_keywords(text: str, top_n: int = 5) -> List[str]:
+    words = [w.lower() for w in re.findall(r"\w+", text) if len(w) > 2]
+    filtered = [w for w in words if w not in _STOPWORDS]
+    if not filtered:
+        return []
+    counts = Counter(filtered)
+    most = [w for w, _ in counts.most_common(top_n)]
+    return most
+
+
+def build_chunks(blocks: List[Tuple[str, str, int]], source: str, chunk_size_tokens: int = 200) -> List[dict]:
+    """
+    Build chunks from blocks. A chunk will not cross heading boundaries.
+    Each chunk is a dict with keys: chunk_id, text, metadata, approx_tokens
+    """
+    chunks: list[dict] = []
+    current_headings: List[str] = []
+    accumulator_lines: List[str] = []
+    accumulator_tokens = 0
+    chunk_id = 0
+
+    def emit_current_chunk():
+        nonlocal chunk_id, accumulator_lines, accumulator_tokens
+        if not accumulator_lines:
+            return
+        text = "\n\n".join(accumulator_lines).strip()
+        approx_tokens = approx_tokens_for_text(text)
+        keywords = extract_keywords(text, top_n=5)
+        metadata = {"source": os.path.basename(source), "headings": list(current_headings), "keywords": keywords}
+        chunks.append({
+            "chunk_id": chunk_id,
+            "text": text,
+            "metadata": metadata,
+            "approx_tokens": approx_tokens,
+            "char_length": len(text)
+        })
+        chunk_id += 1
+        accumulator_lines = []
+        accumulator_tokens = 0
+
+    for kind, text, level in blocks:
+        if kind == "heading":
+            # heading -> start a new chunk boundary (emit previous chunk)
+            # update headings stack
+            # Pop to level-1 and append current heading
+            while len(current_headings) >= level:
+                current_headings.pop()
+            current_headings.append(text)
+            # Emitting previous chunk to ensure chunks don't cross headings
+            emit_current_chunk()
+            # Optionally we can create a tiny chunk containing the heading itself if desired.
+            # Here we'll include heading as context (not emitting single-heading chunk).
+            continue
+
+        # For paragraph or table: add to accumulator. If adding exceeds chunk_size_tokens, emit previous chunk first.
+        added_tokens = approx_tokens_for_text(text)
+        if accumulator_lines and (accumulator_tokens + added_tokens > chunk_size_tokens):
+            emit_current_chunk()
+        accumulator_lines.append(text)
+        accumulator_tokens += added_tokens
+
+    # Emit any remaining
+    emit_current_chunk()
+    return chunks
+
+
+def write_chunks_jsonl(chunks: List[dict], outpath: str) -> None:
+    with open(outpath, "w", encoding="utf-8") as fh:
+        for chunk in chunks:
+            fh.write(json.dumps(chunk, ensure_ascii=False) + "\n")
+
+
+def parse_docx_to_text(path: str) -> str:
+    """
+    Convenience: convert blocks back to plain text using render rules used earlier.
+    """
+    blocks = parse_docx_to_blocks(path)
+    # Render to human-readable text similar to previous behavior
+    rendered_parts: List[str] = []
+    for kind, text, level in blocks:
+        if kind == "heading":
+            lvl = max(1, min(6, level))
+            rendered_parts.append(f"{'#' * lvl} {text}")
+        elif kind == "table":
+            rendered_parts.append(text)
+        else:
+            # paragraph
+            rendered_parts.append(text if not text.startswith("- ") else text)
+    return "\n\n".join(rendered_parts)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Parse a .docx file and print plain text.")
+    parser = argparse.ArgumentParser(description="Parse a .docx file and print plain text and produce chunks JSONL.")
     parser.add_argument("docx", help="Path to the .docx file to parse")
+    parser.add_argument("--chunk-size", type=int, default=200, help="Approx target tokens per chunk (default: 200)")
     args = parser.parse_args(argv)
 
     try:
-        out = parse_docx_to_text(args.docx)
+        # parse into blocks, render text for stdout, and build chunks
+        blocks = parse_docx_to_blocks(args.docx)
+        out_text = []
+        for kind, text, level in blocks:
+            if kind == "heading":
+                lvl = max(1, min(6, level))
+                out_text.append(f"{'#' * lvl} {text}")
+            elif kind == "table":
+                out_text.append(text)
+            else:
+                out_text.append(text if not text.startswith("- ") else text)
+        full_text = "\n\n".join(out_text)
+
+        # Build chunks and write JSONL file next to input
+        chunks = build_chunks(blocks, source=args.docx, chunk_size_tokens=args.chunk_size)
+        chunks_path = args.docx + ".chunks.jsonl"
+        write_chunks_jsonl(chunks, chunks_path)
     except Exception as exc:
         print(f"Error parsing {args.docx}: {exc}", file=sys.stderr)
         return 2
 
-    print(out)
+    # Print the rendered document to stdout (existing behavior)
+    print(full_text)
+    # Also print a short message to stderr about chunks file location
+    print(f"Chunks written: {chunks_path} (count={len(chunks)})", file=sys.stderr)
     return 0
 
 
