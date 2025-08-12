@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+# GOALS: parse a docx file. AI
+
+# Je veux parser un Docx pour créer des chunks et les utiliser pour du RAG. Les chunks ont une taille d'environ 200 tokens.
+# Un fichier Docx est parsé comme ceci :
+# - Les différents niveaux de titres et sections sont présentes dans les metadata de contexte des chunks.
+# - Les mots clés importants du chunk sont présentes dans les metadata de contexte des chunks.
+# - Un chunk n'est jamais à cheval entre plusieurs niveaux de titres ou sections.
+# - Les listes sont transformées en listes à tirets.
+# - Les tableaux sont transformés en un texte qui correspond au même contenu.
+# - Les mises en forme sont supprimées.
+# Je ne veux pas d'autres raffinements.
+# Je veux utiliser python-docx, avec tiktoken et keybert, pour programmer cela.
+
 """
 Placeholder for src/awsgpu/parse-word.py
+
+poetry run parse-word --help
 
 This file is currently a stub. Please tell me what the script should do.
 Common options I can implement:
