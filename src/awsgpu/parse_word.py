@@ -263,10 +263,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error parsing {args.docx}: {exc}", file=sys.stderr)
         return 2
 
-    # Print the rendered document to stdout (existing behavior)
-    print(full_text)
-    # Also print a short message to stderr about chunks file location
+    # Write the rendered document to a .txt file next to the input (do not print the parsed text to stdout)
+    text_path = args.docx + ".txt"
+    with open(text_path, "w", encoding="utf-8") as fh:
+        fh.write(full_text)
+    # Also print a short message to stderr about chunks and text file locations
     print(f"Chunks written: {chunks_path} (count={len(chunks)})", file=sys.stderr)
+    print(f"Text written: {text_path}", file=sys.stderr)
     return 0
 
 
