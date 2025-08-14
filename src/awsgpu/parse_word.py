@@ -65,6 +65,7 @@ def paragraph_is_list(paragraph: Paragraph) -> bool:
     name = style_name.lower()
     print(f"XXXXX: {name}", file=sys.stdout)
     if "list" in name or "bullet" in name or "number" in name or "puce" in name:
+        print(f"XXXXX: LISTE", file=sys.stdout)
         return True
     try:
         pPr = getattr(paragraph._p, "pPr", None)
