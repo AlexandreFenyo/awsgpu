@@ -63,7 +63,8 @@ def paragraph_is_list(paragraph: Paragraph) -> bool:
     except Exception:
         style_name = ""
     name = style_name.lower()
-    if "list" in name or "bullet" in name or "number" in name:
+    print(f"XXXXX: {name}", file=sys.stdout)
+    if "list" in name or "bullet" in name or "number" in name or "puce" in name:
         return True
     try:
         pPr = getattr(paragraph._p, "pPr", None)
@@ -117,43 +118,6 @@ def analyze_paragraph(paragraph: Paragraph) -> Tuple[str, str, int]:
     if paragraph_is_list(paragraph):
         return text, style_name, 0
     return text, style_name, 0
-
-
-def render_paragraph(paragraph: Paragraph) -> str:
-    """
-    Render a paragraph considering style (heading, list, normal).
-    """
-    text = paragraph.text.strip()
-    if not text:
-        return ""
-    style_name = ""
-    try:
-        style_name = paragraph.style.name or ""
-    except Exception:
-        style_name = ""
-    # Heading detection
-    m = _heading_re.search(style_name)
-    if m:
-        try:
-            level = int(m.group(1))
-            level = max(1, min(6, level))
-        except Exception:
-            level = 1
-        return "{} {}".format("#" * level, text)
-    # Another heuristic: style name starting with "Titre" (French) + number
-    m2 = re.search(r"titre\s*(\d+)", style_name, re.IGNORECASE)
-    if m2:
-        try:
-            level = int(m2.group(1))
-            level = max(1, min(6, level))
-        except Exception:
-            level = 1
-        return "{} {}".format("#" * level, text)
-    # List detection
-    if paragraph_is_list(paragraph):
-        return "- " + text
-    # Fallback normal paragraph
-    return text
 
 
 def parse_docx_to_blocks(path: str) -> List[Tuple[str, str, int]]:
@@ -269,25 +233,6 @@ def write_chunks_jsonl(chunks: List[dict], outpath: str) -> None:
     with open(outpath, "w", encoding="utf-8") as fh:
         for chunk in chunks:
             fh.write(json.dumps(chunk, ensure_ascii=False) + "\n")
-
-
-def parse_docx_to_text(path: str) -> str:
-    """
-    Convenience: convert blocks back to plain text using render rules used earlier.
-    """
-    blocks = parse_docx_to_blocks(path)
-    # Render to human-readable text similar to previous behavior
-    rendered_parts: List[str] = []
-    for kind, text, level in blocks:
-        if kind == "heading":
-            lvl = max(1, min(6, level))
-            rendered_parts.append(f"{'#' * lvl} {text}")
-        elif kind == "table":
-            rendered_parts.append(text)
-        else:
-            # paragraph
-            rendered_parts.append(text if not text.startswith("- ") else text)
-    return "\n\n".join(rendered_parts)
 
 
 def main(argv: list[str] | None = None) -> int:
