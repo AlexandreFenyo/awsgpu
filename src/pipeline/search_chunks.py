@@ -13,7 +13,7 @@ Usage:
   ./src/pipeline/search_chunks.py -k 25 -c rag_chunks "contrat de maintenance"
 
 Each result line includes:
-  { chunk_id, distance, approx_tokens, keywords, created_at }
+  { chunk_id, text, distance, approx_tokens, keywords, created_at }
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
         results = coll.query.near_vector(
             near_vector=vector,
             limit=limit,
-            return_properties=["chunk_id", "approx_tokens", "keywords", "created_at"],
+            return_properties=["chunk_id", "text", "approx_tokens", "keywords", "created_at"],
             return_metadata=MetadataQuery(distance=True),
         )
 
@@ -70,6 +70,7 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
             out.append(
                 {
                     "chunk_id": props.get("chunk_id"),
+                    "text": props.get("text"),
                     "distance": getattr(obj.metadata, "distance", None),
                     "approx_tokens": props.get("approx_tokens"),
                     "keywords": props.get("keywords"),
