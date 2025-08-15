@@ -1,0 +1,11 @@
+
+Ce script Python utilise les bibliothèques Python suivantes :
+- MarkItDown
+
+Il prend en entrée un nom de fichier.
+Il transforme le fichier d'entrée en un fichier au format MarkDown.
+Le nom de fichier de sortie est composé du nom de fichier d'entrée auquel on ajoute le suffixe ".md".
+Il affiche le nom du fichier produit.
+
+> poetry add 'markitdown[docx]'
+

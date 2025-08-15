@@ -3,7 +3,7 @@
 Upload precomputed embeddings into a local Weaviate instance.
 
 - Input: NDJSON file of embeddings (one JSON object per line), with fields:
-  { chunk_id, embedding: [floats], model: {name, version}, created_at, approx_tokens, keywords, headings }
+  { chunk_id, text, embedding: [floats], model: {name, version}, created_at, approx_tokens, keywords, headings }
 
 - Behavior:
   - Creates a Weaviate collection with a schema that does NOT perform vectorization (vectorizer = none).
@@ -41,6 +41,7 @@ def _ensure_collection(client, name: str):
     """
     props = [
         Property(name="chunk_id", data_type=DataType.TEXT),
+        Property(name="text", data_type=DataType.TEXT),
         Property(name="approx_tokens", data_type=DataType.INT),
         Property(name="keywords", data_type=DataType.TEXT_ARRAY),
         Property(name="created_at", data_type=DataType.TEXT),
@@ -125,6 +126,7 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
                 # Collect properties; keep types simple as defined in schema above.
                 props: Dict[str, Any] = {
                     "chunk_id": item.get("chunk_id"),
+                    "text": item.get("text"),
                     "approx_tokens": item.get("approx_tokens"),
                     "keywords": item.get("keywords") or [],
                     "created_at": item.get("created_at"),

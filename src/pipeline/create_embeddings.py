@@ -3,7 +3,7 @@
 Create embeddings from Markdown chunks for a simple RAG pipeline.
 
 - Input: a JSONL file of chunks (as produced by create_chunks.py).
-- Output: NDJSON (.embeddings.ndjon) where each line is:
+- Output: NDJSON (.embeddings.ndjson) where each line is:
     {
       "chunk_id": "...",
       "text": "...",
@@ -57,14 +57,14 @@ def _extract_meta(chunk: Dict) -> tuple[List[str], Dict[str, str]]:
 
 def convert_chunks_to_embeddings(input_path: str) -> str:
     """
-    Read chunks JSONL and write embeddings NDJSON to <input>.embeddings.ndjon.
+    Read chunks JSONL and write embeddings NDJSON to <input>.embeddings.ndjson.
     Returns the output file path as a string.
     """
     src = Path(input_path)
     if not src.exists():
         raise FileNotFoundError(f"Input file not found: {src}")
 
-    out_path = Path(f"{input_path}.embeddings.ndjon")
+    out_path = Path(f"{input_path}.embeddings.ndjson")
 
     model = SentenceTransformer(_MODEL_NAME)
 

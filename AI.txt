@@ -1,7 +1,13 @@
 
+choix : weaviate :
+Hybride BM25+vector, filtres, “named vectors” (multi-embeddings), where sur propriétés (entities).
+
+index hybride :
+- Lexical (BM25 + fuzzy) sur le texte.
+- Vecteurs sur le texte
+
 poetry run parse-word --help
 poetry run parse-word $HOME/CCTP.docx
-
 
 Je veux parser un Docx pour créer des chunks et les utiliser pour du RAG. Les chunks ont une taille d'environ 200 tokens.
 # Un fichier Docx est parsé comme ceci :
@@ -14,3 +20,4 @@ Je veux parser un Docx pour créer des chunks et les utiliser pour du RAG. Les c
 # Je ne veux pas d'autres raffinements.
 # Je veux utiliser python-docx, avec tiktoken et keybert, pour programmer cela.
 
+Si différents paragraphes consécutifs sont des éléments d'une même liste, alors il faut tous les mettre dans le même chunk, et en tête de ce chunk il faut mettre le paragraphe qui précède le premier de la liste.

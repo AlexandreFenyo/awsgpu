@@ -1,0 +1,25 @@
+
+Je veux développer un pipeline de RAG, pour faire de la genAI.
+
+Je veux un script Python, pour la transformation d'un document en chunks.
+
+Ce script prend en entrée un nom de fichier, qui est au format MarkDown.
+
+Le fichier est parsé pour créer des chunks qui seront envoyés, via un autre script, dans une base Weaviate.
+Les chunks ont une taille d'environ 200 tokens par défaut, valeur modifiable sur la ligne de commande.
+L'estimation de la taille des chunks se fait le plus simplement possible, sans utiliser de bibliothèque spécifique.
+
+Le fichier est parsé comme ceci :
+- Un chunk n'est jamais à cheval entre plusieurs niveaux de titres ;
+- Les tableaux sont transformés en un texte qui correspond au même contenu.
+
+Les metadata de contexte des chunks comprennent :
+  - les mots clés importants du chunk ;
+  - les différents niveaux de titres.
+  
+Je ne veux pas d'autres raffinements.
+
+Le nom de fichier de sortie contenant les chunks est composé du nom de fichier d'entrée auquel on ajoute le suffixe ".chunks.jq"
+Le script affiche le nom du fichier produit.
+
+
