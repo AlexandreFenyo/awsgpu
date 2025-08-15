@@ -60,7 +60,14 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
         results = coll.query.near_vector(
             near_vector=vector,
             limit=limit,
-            return_properties=["chunk_id", "text", "approx_tokens", "keywords", "headings", "created_at"],
+            return_properties=[
+                "chunk_id",
+                "text",
+                "approx_tokens",
+                "keywords",
+                "created_at",
+                {"headings": ["h1", "h2", "h3", "h4", "h5", "h6"]},
+            ],
             return_metadata=MetadataQuery(distance=True),
         )
 
