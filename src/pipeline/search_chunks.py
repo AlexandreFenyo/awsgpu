@@ -106,7 +106,7 @@ def main(argv: List[str] | None = None) -> int:
         return 1
 
     for rec in results:
-        print(json.dumps(rec, ensure_ascii=False))
+        print(json.dumps(rec, ensure_ascii=False, default=str))
 
     return 0
 
