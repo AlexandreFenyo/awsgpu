@@ -6,6 +6,7 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
 - Output: NDJSON (.embeddings.ndjon) where each line is:
     {
       "chunk_id": "...",
+      "text": "...",
       "embedding": [floats],
       "model": {"name": "...", "version": "..."},
       "created_at": "YYYY-MM-DDTHH:MM:SSZ",
@@ -93,8 +94,12 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
         with out_path.open("a", encoding="utf-8") as out_f:
             for item, emb in zip(rows, embs):
                 keywords, headings = _extract_meta(item)
+                text = item.get("text", "")
+                if not isinstance(text, str):
+                    text = str(text)
                 rec = {
                     "chunk_id": item.get("chunk_id"),
+                    "text": text,
                     "embedding": emb,
                     "model": model_info,
                     "created_at": created_at,
