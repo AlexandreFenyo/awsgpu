@@ -92,27 +92,51 @@ def convert_docx_to_markdown(docx_path: Path) -> str:
     """
     Convert the .docx to markdown using MarkItDown.
 
-    If markitdown is not installed, this function raises a RuntimeError with instructions.
+    If markitdown is not installed or has an unexpected API, this function will try several
+    plausible entry points (module-level functions and the MarkItDown class) and raise a
+    helpful RuntimeError if none match.
     """
     if not _HAS_MARKITDOWN:
         raise RuntimeError(
             "markitdown package is not installed. Install it with: pip install markitdown"
         )
 
-    # markitdown usage may differ depending on version. This attempts common entry points.
-    # If your markitdown version uses a different API, update this function accordingly.
     try:
-        # Some versions expose a simple convert_file or Document class.
+        # Common module-level functions
         if hasattr(markitdown, "convert_file"):
-            md = markitdown.convert_file(str(docx_path))
-            return md
-        elif hasattr(markitdown, "from_docx"):
-            md = markitdown.from_docx(str(docx_path))
-            return md
-        else:
-            # Try a generic convert function
-            md = markitdown.convert(str(docx_path))
-            return md
+            logger.debug("Using markitdown.convert_file")
+            return markitdown.convert_file(str(docx_path))
+        if hasattr(markitdown, "from_docx"):
+            logger.debug("Using markitdown.from_docx")
+            return markitdown.from_docx(str(docx_path))
+        if hasattr(markitdown, "convert"):
+            logger.debug("Using markitdown.convert")
+            return markitdown.convert(str(docx_path))
+
+        # Try class-based API (MarkItDown)
+        if hasattr(markitdown, "MarkItDown"):
+            try:
+                md_cls = getattr(markitdown, "MarkItDown")
+                logger.debug("Instantiating MarkItDown class from markitdown module")
+                inst = md_cls()
+                if hasattr(inst, "convert_file"):
+                    logger.debug("Using MarkItDown().convert_file")
+                    return inst.convert_file(str(docx_path))
+                if hasattr(inst, "convert"):
+                    logger.debug("Using MarkItDown().convert")
+                    return inst.convert(str(docx_path))
+            except Exception as e:
+                logger.debug("MarkItDown class instantiation or conversion failed: %s", e)
+
+        # Nothing matched — raise informative error listing top-level attributes
+        available = sorted([n for n in dir(markitdown) if not n.startswith("_")])
+        raise RuntimeError(
+            "Installed markitdown module does not expose any known conversion API.\n"
+            "Available top-level attributes: " + ", ".join(available) + "\n"
+            "Either install a compatible markitdown or update this function to call the"
+            " correct API. To inspect locally run:\n"
+            "  python -c \"import markitdown,inspect; print(sorted([n for n in dir(markitdown) if not n.startswith('_')]))\""
+        )
     except Exception as e:
         raise RuntimeError(
             "Failed to convert docx to markdown using markitdown: " + str(e)
