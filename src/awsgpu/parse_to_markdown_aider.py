@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 parse_to_markdown_aider.py
 
