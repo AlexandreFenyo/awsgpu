@@ -41,40 +41,20 @@ except Exception as e:
         "python-docx is required. Install with: pip install python-docx"
     ) from e
 
-# try to import parse_docx_to_blocks from the local package
-try:
-    from awsgpu.parse_word import parse_docx_to_blocks  # type: ignore
-except Exception:
-    # fallback: provide a minimal parser if awsgpu.parse_word is not importable
-    def parse_docx_to_blocks(path: str) -> list[tuple[str, str, int]]:
-        """
-        Very small fallback: returns paragraphs as ('paragraph', text, 0).
-        Prefer the real awsgpu.parse_word.parse_docx_to_blocks if available.
-        """
-        doc = Document(path)
-        blocks: list[tuple[str, str, int]] = []
-        for p in doc.paragraphs:
-            text = p.text.strip()
-            if not text:
-                continue
-            blocks.append(("paragraph", text, 0))
-        return blocks  # type: ignore
+# Using MarkItDown exclusively; parse_word is not used.
+# parse_docx_to_blocks removed.
 
-# optional MarkItDown usage (best-effort)
-_has_markitdown = False
+# MarkItDown is required
+_has_markitdown = True
 _markitdown_converter = None
 try:
     import markitdown  # type: ignore
-
-    # try to find a reasonable API on markitdown
     if hasattr(markitdown, "MarkItDown"):
         _markitdown_converter = markitdown.MarkItDown()  # type: ignore
-        _has_markitdown = True
-    elif hasattr(markitdown, "convert"):
+    else:
         _markitdown_converter = markitdown  # type: ignore
-        _has_markitdown = True
-except Exception:
-    _has_markitdown = False
+except Exception as e:
+    raise RuntimeError("markitdown is required. Install with: pip install markitdown") from e
 
 
 def _get_openai_api_key() -> str:
@@ -225,11 +205,17 @@ def convert_docx_to_markdown_with_images(input_path: str, output_md: str) -> Non
     output_md = str(output_md)
     api_key = _get_openai_api_key()
 
-    # 1) get text blocks via parse_docx_to_blocks
-    blocks = parse_docx_to_blocks(input_path)
-
-    # 2) convert blocks to markdown
-    md_text = _blocks_to_markdown(blocks)
+    # 1) convert DOCX to Markdown using MarkItDown
+    try:
+        if hasattr(_markitdown_converter, "convert_docx"):
+            md_text = _markitdown_converter.convert_docx(input_path)  # type: ignore
+        else:
+            # Fallback: extract plain text and pass to convert()
+            doc = Document(input_path)
+            texts = "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            md_text = _markitdown_converter.convert(texts)  # type: ignore
+    except Exception as e:
+        raise RuntimeError("MarkItDown failed to convert DOCX to Markdown") from e
 
     # 3) extract images
     images = _extract_images_from_docx(input_path)
