@@ -30,6 +30,7 @@ from sentence_transformers import SentenceTransformer
 try:
     import weaviate
     from weaviate.classes.query import MetadataQuery
+    from weaviate.collections.classes.grpc import QueryNested
 except Exception as exc:
     print("Error: weaviate-client is required. Install with: pip install weaviate-client", file=sys.stderr)
     raise
@@ -66,7 +67,7 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
                 "approx_tokens",
                 "keywords",
                 "created_at",
-                {"headings": ["h1", "h2", "h3", "h4", "h5", "h6"]},
+                QueryNested("headings", ["h1", "h2", "h3", "h4", "h5", "h6"]),
             ],
             return_metadata=MetadataQuery(distance=True),
         )
