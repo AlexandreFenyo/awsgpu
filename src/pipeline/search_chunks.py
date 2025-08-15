@@ -67,7 +67,7 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
                 "approx_tokens",
                 "keywords",
                 "created_at",
-                QueryNested(path="headings", properties=["h1", "h2", "h3", "h4", "h5", "h6"]),
+                QueryNested(name="headings", properties=["h1", "h2", "h3", "h4", "h5", "h6"]),
             ],
             return_metadata=MetadataQuery(distance=True),
         )
