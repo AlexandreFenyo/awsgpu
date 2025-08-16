@@ -15,6 +15,7 @@ Constraints and behavior:
 - Chunk size ~200 tokens by default, configurable via CLI.
 - Simple token estimation without external libraries (based on word count).
 - No chunk crosses heading boundaries.
+- List blocks are kept intact (never split across chunks), even if that exceeds the token budget.
 - Markdown tables are converted to simple text preserving their content.
 - Metadata includes:
   - Keywords extracted from the chunk text (simple top-N by frequency, minus stopwords).
@@ -120,6 +121,40 @@ def parse_table_block(lines: List[str], start_idx: int) -> Tuple[str, int]:
     return table_text, i
 
 
+def _is_list_item_start(line: str) -> bool:
+    return bool(re.match(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)", line))
+
+def _is_indented_continuation(line: str) -> bool:
+    return bool(re.match(r"^\s{2,}\S", line)) or line.startswith("\t")
+
+def _parse_list_block(lines: List[str], start_idx: int) -> Tuple[str, int]:
+    """
+    Parse a contiguous Markdown list block starting at start_idx.
+    Keeps all list items (and their indented continuations) together.
+    Returns (block_text, next_index).
+    """
+    i = start_idx
+    collected: List[str] = []
+    if i >= len(lines) or not _is_list_item_start(lines[i]):
+        return "", i
+
+    while i < len(lines):
+        ln = lines[i]
+        if _is_list_item_start(ln) or _is_indented_continuation(ln):
+            collected.append(ln)
+            i += 1
+            continue
+        if not ln.strip():
+            # Blank line: include it only if the following line continues the list.
+            if i + 1 < len(lines) and (_is_list_item_start(lines[i + 1]) or _is_indented_continuation(lines[i + 1])):
+                collected.append(ln)
+                i += 1
+                continue
+            break
+        break
+
+    return "\n".join(collected), i
+
 def extract_keywords(text: str, top_n: int = 5) -> List[str]:
     """
     Simple keyword extraction:
@@ -153,7 +188,7 @@ def build_chunks_from_markdown(
 
     # Active heading context, mapping level -> title
     headings: Dict[int, str] = {}
-    buffer_lines: List[str] = []
+    buffer_blocks: List[str] = []
 
     def current_headings_meta() -> Dict[str, str]:
         # Build an ordered dict-like mapping h1..h6 for metadata
@@ -163,16 +198,12 @@ def build_chunks_from_markdown(
         return meta
 
     def emit_buffer_as_chunks():
-        nonlocal buffer_lines
-        if not buffer_lines:
-            return
-        text = "\n".join(buffer_lines).strip()
-        if not text:
-            buffer_lines = []
+        nonlocal buffer_blocks
+        if not buffer_blocks:
             return
 
-        # Split by lines to pack into chunks without exceeding the token budget.
-        out_lines: List[str] = []
+        # Pack blocks (list blocks or single lines) into chunks without splitting list blocks.
+        out_blocks: List[str] = []
         approx = 0
         chunk_idx_local = 0
 
@@ -193,20 +224,22 @@ def build_chunks_from_markdown(
                 }
             )
 
-        for ln in text.splitlines():
-            new_approx = approx + estimate_tokens(ln)
-            # If adding this line would exceed the budget and we already have content, flush
-            if out_lines and new_approx > chunk_size_tokens:
-                finalize_one("\n".join(out_lines).strip())
-                out_lines = []
+        for block in buffer_blocks:
+            block_tokens = estimate_tokens(block)
+            # If adding this block would exceed the budget and we already have content, flush first.
+            if out_blocks and (approx + block_tokens) > chunk_size_tokens:
+                finalize_one("\n".join(out_blocks).strip())
+                out_blocks = []
                 approx = 0
-            out_lines.append(ln)
-            approx = new_approx
 
-        if out_lines:
-            finalize_one("\n".join(out_lines).strip())
+            # Always add the whole block (may exceed budget), especially for list blocks.
+            out_blocks.append(block)
+            approx += block_tokens
 
-        buffer_lines = []
+        if out_blocks:
+            finalize_one("\n".join(out_blocks).strip())
+
+        buffer_blocks = []
 
     i = 0
     while i < len(lines):
@@ -232,12 +265,20 @@ def build_chunks_from_markdown(
         # Table block?
         table_text, next_i = parse_table_block(lines, i)
         if table_text:
-            buffer_lines.append(table_text)
+            buffer_blocks.append(table_text)
             i = next_i
             continue
 
+        # List block?
+        if _is_list_item_start(line):
+            list_text, next_i = _parse_list_block(lines, i)
+            if list_text:
+                buffer_blocks.append(list_text)
+                i = next_i
+                continue
+
         # Regular text line
-        buffer_lines.append(line)
+        buffer_blocks.append(line)
         i += 1
 
     # Flush any remaining content
