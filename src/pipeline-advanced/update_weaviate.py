@@ -88,7 +88,7 @@ def _ensure_collection(client, name: str):
         name=name,
         properties=props,
         vectorizer_config=Configure.Vectorizer.none(),
-        vectors_config=vectors_conf,
+        vector_config=vectors_conf,
     )
     # After creation, fetch a handle to the collection
     return client.collections.get(name)
