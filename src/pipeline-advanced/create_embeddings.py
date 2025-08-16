@@ -8,6 +8,7 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
       "chunk_id": "...",
       "text": "...",
       "embedding": [floats],
+      "embeddings": [[floats], ...],
       "model": {"name": "...", "version": "..."},
       "created_at": "YYYY-MM-DDTHH:MM:SSZ",
       "approx_tokens": 123,
@@ -17,6 +18,7 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
 
 Behavior:
 - Uses sentence-transformers with the 'paraphrase-xlm-r-multilingual-v1' model.
+- For each chunk, also computes embeddings for each heading level present (h1..h6) and outputs them under "embeddings" ordered by level.
 - Streams input and encodes in small batches to limit memory use.
 - Prints the produced output filename.
 """
@@ -81,18 +83,71 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
         nonlocal texts, rows
         if not texts:
             return
-        embeddings = model.encode(texts, batch_size=min(_BATCH_SIZE, len(texts)), convert_to_numpy=True, show_progress_bar=False)
-        # Ensure JSON-serializable floats
-        if isinstance(embeddings, list):
-            embs = [list(map(float, e)) for e in embeddings]
-        elif isinstance(embeddings, np.ndarray):
-            embs = embeddings.astype(float).tolist()
+
+        # Encode chunk texts to produce the main embedding per chunk.
+        text_embeddings = model.encode(
+            texts,
+            batch_size=min(_BATCH_SIZE, len(texts)),
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+        # Ensure JSON-serializable floats for text embeddings
+        if isinstance(text_embeddings, list):
+            text_embs: List[List[float]] = [list(map(float, e)) for e in text_embeddings]
+        elif isinstance(text_embeddings, np.ndarray):
+            text_embs = text_embeddings.astype(float).tolist()
         else:
-            # Fallback
-            embs = [list(map(float, np.array(embeddings).astype(float).tolist()))]
+            text_embs = [list(map(float, np.array(text_embeddings).astype(float).tolist()))]
+
+        # Prepare per-row heading texts ordered by level and encode them.
+        flat_headings: List[str] = []
+        counts_per_row: List[int] = []
+        for item in rows:
+            _, headings = _extract_meta(item)
+            ordered = [
+                title
+                for level, title in sorted(
+                    (
+                        (int(k[1:]), v)
+                        for k, v in headings.items()
+                        if isinstance(k, str) and k.startswith("h") and isinstance(v, str) and v.strip()
+                    ),
+                    key=lambda t: t[0],
+                )
+            ]
+            counts_per_row.append(len(ordered))
+            flat_headings.extend(ordered)
+
+        # Encode all heading titles in one batch (may be empty for some rows).
+        heading_embs_list: List[List[float]]
+        if flat_headings:
+            heading_embeddings = model.encode(
+                flat_headings,
+                batch_size=min(_BATCH_SIZE, len(flat_headings)),
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
+            if isinstance(heading_embeddings, np.ndarray):
+                heading_embs_list = heading_embeddings.astype(float).tolist()
+            elif isinstance(heading_embeddings, list):
+                heading_embs_list = [list(map(float, e)) for e in heading_embeddings]
+            else:
+                heading_embs_list = [list(map(float, np.array(heading_embeddings).astype(float).tolist()))]
+        else:
+            heading_embs_list = []
+
+        # Reconstruct per-row arrays of heading embeddings.
+        per_row_embeddings: List[List[List[float]]] = []
+        idx = 0
+        for count in counts_per_row:
+            if count == 0:
+                per_row_embeddings.append([])
+            else:
+                per_row_embeddings.append(heading_embs_list[idx : idx + count])
+                idx += count
 
         with out_path.open("a", encoding="utf-8") as out_f:
-            for item, emb in zip(rows, embs):
+            for item, text_emb, heading_embs in zip(rows, text_embs, per_row_embeddings):
                 keywords, headings = _extract_meta(item)
                 text = item.get("text", "")
                 if not isinstance(text, str):
@@ -100,7 +155,8 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
                 rec = {
                     "chunk_id": item.get("chunk_id"),
                     "text": text,
-                    "embedding": emb,
+                    "embedding": text_emb,
+                    "embeddings": heading_embs,
                     "model": model_info,
                     "created_at": created_at,
                     "approx_tokens": item.get("approx_tokens"),
