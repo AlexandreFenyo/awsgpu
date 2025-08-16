@@ -116,8 +116,8 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
         coll = _ensure_collection(client, collection_name)
 
         inserted = 0
-        # Use dynamic batching for performance
-        with coll.batch.dynamic() as batch, src.open("r", encoding="utf-8") as f:
+        # Insert one by one using data.insert to support named vectors across client versions.
+        with src.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -156,7 +156,7 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
                     "headings": item.get("headings") or {},
                 }
 
-                batch.add_object(properties=props, vectors=vectors)
+                coll.data.insert(properties=props, vectors=vectors)
                 inserted += 1
 
         return inserted
