@@ -189,7 +189,7 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
                     if hv:
                         props["headings"] = hv
 
-                coll.data.insert(properties=props, vectors=vectors)
+                coll.data.insert(properties=props, vector=vectors)
                 inserted += 1
 
         return inserted
