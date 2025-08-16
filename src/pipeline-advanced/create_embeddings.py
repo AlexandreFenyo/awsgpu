@@ -19,6 +19,7 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
 Behavior:
 - Uses sentence-transformers with the 'paraphrase-xlm-r-multilingual-v1' model.
 - For each chunk, also computes embeddings for each heading level present (h1..h6) and outputs them under "embeddings" ordered by level.
+- Caches embeddings on disk to avoid recomputation across runs (per-model cache).
 - Streams input and encodes in small batches to limit memory use.
 - Prints the produced output filename.
 """
@@ -27,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -76,6 +78,42 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
         "version": getattr(sentence_transformers, "__version__", "unknown"),
     }
 
+    # Simple on-disk cache for embeddings to avoid recomputation across runs.
+    # One cache file per input and model name.
+    cache_path = Path(f"{input_path}.{_MODEL_NAME}.emb_cache.jsonl")
+    emb_cache: Dict[str, List[float]] = {}
+
+    def _cache_key(text: str) -> str:
+        """
+        Build a stable key for the given text, including model name and version to avoid collisions.
+        """
+        ver = model_info.get("version", "unknown")
+        payload = f"{_MODEL_NAME}\n{ver}\n".encode("utf-8") + (text if isinstance(text, bytes) else str(text)).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    # Load existing cache entries
+    if cache_path.exists():
+        with cache_path.open("r", encoding="utf-8") as cf:
+            for ln in cf:
+                try:
+                    rec = json.loads(ln)
+                except json.JSONDecodeError:
+                    continue
+                k = rec.get("k")
+                v = rec.get("v")
+                if isinstance(k, str) and isinstance(v, list):
+                    try:
+                        emb_cache[k] = [float(x) for x in v]
+                    except Exception:
+                        continue
+
+    def _persist_cache_items(items: List[tuple[str, List[float]]]) -> None:
+        if not items:
+            return
+        with cache_path.open("a", encoding="utf-8") as cf:
+            for k, v in items:
+                cf.write(json.dumps({"k": k, "v": v}, ensure_ascii=False) + "\n")
+
     texts: List[str] = []
     rows: List[Dict] = []
 
@@ -84,22 +122,37 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
         if not texts:
             return
 
-        # Encode chunk texts to produce the main embedding per chunk.
-        text_embeddings = model.encode(
-            texts,
-            batch_size=min(_BATCH_SIZE, len(texts)),
-            convert_to_numpy=True,
-            show_progress_bar=False,
-        )
-        # Ensure JSON-serializable floats for text embeddings
-        if isinstance(text_embeddings, list):
-            text_embs: List[List[float]] = [list(map(float, e)) for e in text_embeddings]
-        elif isinstance(text_embeddings, np.ndarray):
-            text_embs = text_embeddings.astype(float).tolist()
-        else:
-            text_embs = [list(map(float, np.array(text_embeddings).astype(float).tolist()))]
+        # Resolve text embeddings using cache when possible
+        text_keys = [_cache_key(t) for t in texts]
+        text_embs: List[Optional[List[float]]] = [emb_cache.get(k) for k in text_keys]
+        to_compute_idx = [i for i, e in enumerate(text_embs) if e is None]
+        if to_compute_idx:
+            to_compute_texts = [texts[i] for i in to_compute_idx]
+            computed = model.encode(
+                to_compute_texts,
+                batch_size=min(_BATCH_SIZE, len(to_compute_texts)),
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
+            if isinstance(computed, np.ndarray):
+                computed_list: List[List[float]] = computed.astype(float).tolist()
+            elif isinstance(computed, list):
+                computed_list = [list(map(float, e)) for e in computed]
+            else:
+                computed_list = [list(map(float, np.array(computed).astype(float).tolist()))]
 
-        # Prepare per-row heading texts ordered by level and encode them.
+            new_cache_items: List[tuple[str, List[float]]] = []
+            for pos, vec in zip(to_compute_idx, computed_list):
+                k = text_keys[pos]
+                emb_cache[k] = vec
+                text_embs[pos] = vec
+                new_cache_items.append((k, vec))
+            _persist_cache_items(new_cache_items)
+
+        # At this point, all text_embs are filled
+        text_embs_filled: List[List[float]] = [e for e in text_embs if e is not None]  # type: ignore
+
+        # Prepare per-row heading texts ordered by level
         flat_headings: List[str] = []
         counts_per_row: List[int] = []
         for item in rows:
@@ -118,21 +171,36 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
             counts_per_row.append(len(ordered))
             flat_headings.extend(ordered)
 
-        # Encode all heading titles in one batch (may be empty for some rows).
-        heading_embs_list: List[List[float]]
+        # Resolve heading embeddings via cache
+        heading_embs_list: List[List[float]] = []
         if flat_headings:
-            heading_embeddings = model.encode(
-                flat_headings,
-                batch_size=min(_BATCH_SIZE, len(flat_headings)),
-                convert_to_numpy=True,
-                show_progress_bar=False,
-            )
-            if isinstance(heading_embeddings, np.ndarray):
-                heading_embs_list = heading_embeddings.astype(float).tolist()
-            elif isinstance(heading_embeddings, list):
-                heading_embs_list = [list(map(float, e)) for e in heading_embeddings]
-            else:
-                heading_embs_list = [list(map(float, np.array(heading_embeddings).astype(float).tolist()))]
+            heading_keys = [_cache_key(h) for h in flat_headings]
+            heading_embs_opt: List[Optional[List[float]]] = [emb_cache.get(k) for k in heading_keys]
+            to_compute_idx_h = [i for i, e in enumerate(heading_embs_opt) if e is None]
+            if to_compute_idx_h:
+                to_compute_headings = [flat_headings[i] for i in to_compute_idx_h]
+                computed_h = model.encode(
+                    to_compute_headings,
+                    batch_size=min(_BATCH_SIZE, len(to_compute_headings)),
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
+                )
+                if isinstance(computed_h, np.ndarray):
+                    computed_h_list: List[List[float]] = computed_h.astype(float).tolist()
+                elif isinstance(computed_h, list):
+                    computed_h_list = [list(map(float, e)) for e in computed_h]
+                else:
+                    computed_h_list = [list(map(float, np.array(computed_h).astype(float).tolist()))]
+
+                new_cache_items_h: List[tuple[str, List[float]]] = []
+                for pos, vec in zip(to_compute_idx_h, computed_h_list):
+                    k = heading_keys[pos]
+                    emb_cache[k] = vec
+                    heading_embs_opt[pos] = vec
+                    new_cache_items_h.append((k, vec))
+                _persist_cache_items(new_cache_items_h)
+
+            heading_embs_list = [e for e in heading_embs_opt if e is not None]  # type: ignore
         else:
             heading_embs_list = []
 
@@ -147,7 +215,7 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
                 idx += count
 
         with out_path.open("a", encoding="utf-8") as out_f:
-            for item, text_emb, heading_embs in zip(rows, text_embs, per_row_embeddings):
+            for item, text_emb, heading_embs in zip(rows, text_embs_filled, per_row_embeddings):
                 keywords, headings = _extract_meta(item)
                 text = item.get("text", "")
                 if not isinstance(text, str):
