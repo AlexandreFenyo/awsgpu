@@ -67,11 +67,12 @@ def _ensure_collection(client, name: str):
         ),
     ]
 
-    # Create if missing, otherwise reuse existing collection.
+    # Always recreate to ensure the expected named multi-vector schema is present.
+    # This avoids mismatches with previously created collections that lacked named vectors.
     try:
-        coll = client.collections.get(name)
-        return coll
+        client.collections.delete(name)
     except Exception:
+        # Ignore if it doesn't exist yet
         pass
 
     vectors_conf = {
@@ -161,7 +162,7 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
                     if hv:
                         props["headings"] = hv
 
-                coll.data.insert(properties=props, vector=vectors)
+                coll.data.insert(properties=props, vectors=vectors)
                 inserted += 1
 
         return inserted
