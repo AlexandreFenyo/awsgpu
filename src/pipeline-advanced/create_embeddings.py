@@ -128,6 +128,8 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
         to_compute_idx = [i for i, e in enumerate(text_embs) if e is None]
         if to_compute_idx:
             to_compute_texts = [texts[i] for i in to_compute_idx]
+            for t in to_compute_texts:
+                print(f"computing embedding for: {t}")
             computed = model.encode(
                 to_compute_texts,
                 batch_size=min(_BATCH_SIZE, len(to_compute_texts)),
@@ -182,6 +184,8 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
             to_compute_idx_h = [i for i, e in enumerate(heading_embs_opt) if e is None]
             if to_compute_idx_h:
                 to_compute_headings = [flat_headings[i] for i in to_compute_idx_h]
+                for h in to_compute_headings:
+                    print(f"computing embedding for: {h}")
                 computed_h = model.encode(
                     to_compute_headings,
                     batch_size=min(_BATCH_SIZE, len(to_compute_headings)),
