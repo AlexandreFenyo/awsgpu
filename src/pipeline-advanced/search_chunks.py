@@ -11,6 +11,7 @@ Search nearest chunks in Weaviate using a text query.
 Usage:
   ./src/pipeline/search_chunks.py "your query text"
   ./src/pipeline/search_chunks.py -k 25 -c rag_chunks "contrat de maintenance"
+  ./src/pipeline/search_chunks.py -l 2 "recherche sur les titres H2"
 
 Each result line includes:
   { chunk_id, text, distance, approx_tokens, keywords, headings, created_at }
@@ -51,17 +52,18 @@ def _embed_query(text: str) -> List[float]:
     return emb
 
 
-def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chunks") -> List[Dict[str, Any]]:
+def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chunks", heading_level: int | None = None) -> List[Dict[str, Any]]:
     vector = _embed_query(query)
 
     client = weaviate.connect_to_local()
     try:
         coll = client.collections.get(collection_name)
 
+        target_name = "text" if heading_level is None else f"h{heading_level}"
         results = coll.query.near_vector(
             near_vector=vector,
             limit=limit,
-            target_vector="text",
+            target_vector=target_name,
             return_properties=[
                 "chunk_id",
                 "text",
@@ -108,10 +110,18 @@ def main(argv: List[str] | None = None) -> int:
         default="rag_chunks",
         help='Weaviate collection name to query (default: "rag_chunks")',
     )
+    parser.add_argument(
+        "-l",
+        "--level",
+        type=int,
+        choices=[1, 2, 3, 4, 5, 6],
+        default=None,
+        help="Heading level to target (1..6). When set, search uses the corresponding heading vectors (h1..h6) instead of the main text vector.",
+    )
     args = parser.parse_args(argv)
 
     try:
-        results = search_weaviate(args.query, limit=args.limit, collection_name=args.collection_name)
+        results = search_weaviate(args.query, limit=args.limit, collection_name=args.collection_name, heading_level=args.level)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
