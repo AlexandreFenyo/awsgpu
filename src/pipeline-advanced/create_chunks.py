@@ -268,7 +268,7 @@ def build_chunks_from_markdown(
             buffer_blocks.append(table_text)
             i = next_i
             continue
-
+        
         # List block?
         if _is_list_item_start(line):
             list_text, next_i = _parse_list_block(lines, i)
@@ -338,7 +338,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     print(produced)
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -22,4 +22,7 @@ Je ne veux pas d'autres raffinements.
 Le nom de fichier de sortie contenant les chunks est composé du nom de fichier d'entrée auquel on ajoute le suffixe ".chunks.jq"
 Le script affiche le nom du fichier produit.
 
+----------------------------------------------------------------------
+
+Une liste n'est jamais à cheval dans plusieurs chunks, même si cela oblige à avoir plus du nombre de tokens par défaut ou choisi par l'utilisateur.
 
