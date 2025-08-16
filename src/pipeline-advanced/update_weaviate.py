@@ -75,19 +75,18 @@ def _ensure_collection(client, name: str):
         # Ignore if it doesn't exist yet
         pass
 
-    vectors_conf = {
-        "text": Configure.VectorIndex.hnsw(),
-        "h1": Configure.VectorIndex.hnsw(),
-        "h2": Configure.VectorIndex.hnsw(),
-        "h3": Configure.VectorIndex.hnsw(),
-        "h4": Configure.VectorIndex.hnsw(),
-        "h5": Configure.VectorIndex.hnsw(),
-        "h6": Configure.VectorIndex.hnsw(),
-    }
+    vectors_conf = [
+        Configure.NamedVector(name="text", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        Configure.NamedVector(name="h1", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        Configure.NamedVector(name="h2", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        Configure.NamedVector(name="h3", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        Configure.NamedVector(name="h4", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        Configure.NamedVector(name="h5", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        Configure.NamedVector(name="h6", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+    ]
     coll = client.collections.create(
         name=name,
         properties=props,
-        vectorizer_config=Configure.Vectorizer.none(),
         vector_config=vectors_conf,
     )
     # After creation, fetch a handle to the collection
