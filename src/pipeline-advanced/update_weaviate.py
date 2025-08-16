@@ -153,8 +153,13 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
                     "keywords": item.get("keywords") or [],
                     "created_at": item.get("created_at"),
                     "model": item.get("model") or {},
-                    "headings": item.get("headings") or {},
                 }
+                # Only include 'headings' if it's a non-empty object (Weaviate OBJECT cannot be empty)
+                headings_val = item.get("headings")
+                if isinstance(headings_val, dict):
+                    hv = {k: v for k, v in headings_val.items() if isinstance(v, str) and v}
+                    if hv:
+                        props["headings"] = hv
 
                 coll.data.insert(properties=props, vector=vectors)
                 inserted += 1
