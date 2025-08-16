@@ -8,7 +8,7 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
       "chunk_id": "...",
       "text": "...",
       "embedding": [floats],
-      "embeddings": [[floats], ...],
+      "embeddings": [{"level": "hN", "embedding": [floats]}, ...],
       "model": {"name": "...", "version": "..."},
       "created_at": "YYYY-MM-DDTHH:MM:SSZ",
       "approx_tokens": 123,
@@ -18,7 +18,7 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
 
 Behavior:
 - Uses sentence-transformers with the 'paraphrase-xlm-r-multilingual-v1' model.
-- For each chunk, also computes embeddings for each heading level present (h1..h6) and outputs them under "embeddings" ordered by level.
+- For each chunk, also computes embeddings for each heading level present (h1..h6) and outputs them under "embeddings" as objects with their level label (e.g., {"level": "h2", "embedding": [...]}) ordered by level.
 - Caches embeddings on disk to avoid recomputation across runs (per-model cache).
 - Streams input and encodes in small batches to limit memory use.
 - Prints the produced output filename.
@@ -152,13 +152,14 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
         # At this point, all text_embs are filled
         text_embs_filled: List[List[float]] = [e for e in text_embs if e is not None]  # type: ignore
 
-        # Prepare per-row heading texts ordered by level
+        # Prepare per-row heading texts ordered by level, and remember their levels
         flat_headings: List[str] = []
+        flat_levels: List[str] = []
         counts_per_row: List[int] = []
         for item in rows:
             _, headings = _extract_meta(item)
-            ordered = [
-                title
+            ordered_pairs = [
+                (f"h{level}", title)
                 for level, title in sorted(
                     (
                         (int(k[1:]), v)
@@ -168,8 +169,10 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
                     key=lambda t: t[0],
                 )
             ]
-            counts_per_row.append(len(ordered))
-            flat_headings.extend(ordered)
+            counts_per_row.append(len(ordered_pairs))
+            for lvl, title in ordered_pairs:
+                flat_levels.append(lvl)
+                flat_headings.append(title)
 
         # Resolve heading embeddings via cache
         heading_embs_list: List[List[float]] = []
@@ -204,14 +207,18 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
         else:
             heading_embs_list = []
 
-        # Reconstruct per-row arrays of heading embeddings.
-        per_row_embeddings: List[List[List[float]]] = []
+        # Reconstruct per-row arrays of heading embeddings with corresponding level labels.
+        per_row_embeddings: List[List[Dict[str, object]]] = []
         idx = 0
         for count in counts_per_row:
             if count == 0:
                 per_row_embeddings.append([])
             else:
-                per_row_embeddings.append(heading_embs_list[idx : idx + count])
+                levels_slice = flat_levels[idx : idx + count]
+                embs_slice = heading_embs_list[idx : idx + count]
+                per_row_embeddings.append(
+                    [{"level": lvl, "embedding": emb} for lvl, emb in zip(levels_slice, embs_slice)]
+                )
                 idx += count
 
         with out_path.open("a", encoding="utf-8") as out_f:
