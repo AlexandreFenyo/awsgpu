@@ -3,11 +3,11 @@
 Upload precomputed embeddings into a local Weaviate instance.
 
 - Input: NDJSON file of embeddings (one JSON object per line), with fields:
-  { chunk_id, text, embedding: [floats], model: {name, version}, created_at, approx_tokens, keywords, headings }
+  { chunk_id, text, embedding: [floats], embeddings: [{"level": "hN", "embedding": [floats]}, ...], model: {name, version}, created_at, approx_tokens, keywords, headings }
 
 - Behavior:
-  - Creates a Weaviate collection with a schema that does NOT perform vectorization (vectorizer = none).
-  - Inserts each line as an object with the provided embedding set as the vector.
+  - Creates a Weaviate collection with a schema that does NOT perform vectorization (vectorizer = none), and enables named multi-vectors: "text" plus "h1".."h6".
+  - Inserts each line as an object with all available vectors: the main text embedding under "text", and each heading level embedding under its respective name ("h1".."h6").
 
 Notes:
 - Requires: weaviate-client (v4)
@@ -74,10 +74,20 @@ def _ensure_collection(client, name: str):
     except Exception:
         pass
 
+    vectors_conf = {
+        "text": Configure.VectorIndex.hnsw(),
+        "h1": Configure.VectorIndex.hnsw(),
+        "h2": Configure.VectorIndex.hnsw(),
+        "h3": Configure.VectorIndex.hnsw(),
+        "h4": Configure.VectorIndex.hnsw(),
+        "h5": Configure.VectorIndex.hnsw(),
+        "h6": Configure.VectorIndex.hnsw(),
+    }
     coll = client.collections.create(
         name=name,
         properties=props,
         vectorizer_config=Configure.Vectorizer.none(),
+        vectors_config=vectors_conf,
     )
     # After creation, fetch a handle to the collection
     return client.collections.get(name)
@@ -118,10 +128,22 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
                     # Skip malformed lines
                     continue
 
-                vector = _to_float_list(item.get("embedding"))
-                if not vector:
-                    # Skip if no vector
+                text_vec = _to_float_list(item.get("embedding"))
+                if not text_vec:
+                    # Skip if no main text vector
                     continue
+
+                # Build named vectors payload: main "text" + heading level vectors ("h1".."h6") when present.
+                vectors: Dict[str, List[float]] = {"text": text_vec}
+                heading_list = item.get("embeddings") or []
+                if isinstance(heading_list, list):
+                    for entry in heading_list:
+                        if not isinstance(entry, dict):
+                            continue
+                        lvl = entry.get("level")
+                        vec = _to_float_list(entry.get("embedding"))
+                        if isinstance(lvl, str) and lvl in {"h1", "h2", "h3", "h4", "h5", "h6"} and vec:
+                            vectors[lvl] = vec
 
                 # Collect properties; keep types simple as defined in schema above.
                 props: Dict[str, Any] = {
@@ -134,7 +156,7 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
                     "headings": item.get("headings") or {},
                 }
 
-                batch.add_object(properties=props, vector=vector)
+                batch.add_object(properties=props, vectors=vectors)
                 inserted += 1
 
         return inserted
