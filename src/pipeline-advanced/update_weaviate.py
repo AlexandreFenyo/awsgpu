@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 try:
     import weaviate
-    from weaviate.classes.config import Configure, Property, DataType
+    from weaviate.classes.config import Configure, Property, DataType, NamedVector
 except Exception as exc:
     print("Error: weaviate-client is required. Install with: pip install weaviate-client", file=sys.stderr)
     raise
@@ -76,13 +76,13 @@ def _ensure_collection(client, name: str):
         pass
 
     vectors_conf = [
-        Configure.VectorConfig(name="text", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
-        Configure.VectorConfig(name="h1", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
-        Configure.VectorConfig(name="h2", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
-        Configure.VectorConfig(name="h3", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
-        Configure.VectorConfig(name="h4", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
-        Configure.VectorConfig(name="h5", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
-        Configure.VectorConfig(name="h6", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        NamedVector(name="text", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        NamedVector(name="h1", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        NamedVector(name="h2", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        NamedVector(name="h3", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        NamedVector(name="h4", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        NamedVector(name="h5", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
+        NamedVector(name="h6", vectorizer=Configure.Vectorizer.none(), vector_index_config=Configure.VectorIndex.hnsw()),
     ]
     coll = client.collections.create(
         name=name,
