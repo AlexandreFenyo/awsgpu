@@ -19,3 +19,10 @@ Je veux désormais un script qui fait une requête sur ces embeddings, pour réc
 Il récupère 50 chunks, à moins qu'une option de ligne de commande lui indique un autre nombre de chunks à récupérer.
 
 Il affiche les résultats sur la sortie standard.
+
+------------------------------------------------------------
+
+Avec l'option "-l" suivie d'un numéro indiquant le niveau de titre, la recherche ne se fait plus sur le texte mais sur les titres de ce niveau.
+
+------------------------------------------------------------
+
