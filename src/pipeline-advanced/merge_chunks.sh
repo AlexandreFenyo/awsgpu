@@ -16,7 +16,6 @@ CHUNKS_FILE="$1"
 QUESTIONS="$2"
 
 mktemp /tmp/question-XXXXXXXXXX | read PREFIX
-rm -f "$PREFIX"
 rm -f "$PREFIX.prompt"
 
 echo "Vous êtes un assistant expert en informatique, qui travaille à la Sécurité Sociale en France (nommée CNAM : Caisse Nationale d'Assurance Maladie). Utilisez uniquement le contexte fourni ci-dessous pour répondre aux questions, contexte qui est constitué de chunks, extraits de divers documents. Citez les chunks utilisés en les écrivant entre parenthèses, par exemple comme ceci '(référence: \"file.xlsx-42\")', lorsque vous vous référez à leur contenu, qui est dans cet exemple '[[CHUNK (ID: \"file.xlsx-42\") Texte: ceci est le texte du chunk...]]'. Si le contexte est insuffisant, dites-le et proposez des questions de clarification. Soyez clair, structuré et concis. Une fois les réponses fournies, proposez une nouvelle réponse à partir de ce que vous connaissez, sans reprendre les informations déjà indiquées dans les chunks.\n\nContexte concaténé :" >> $PREFIX.prompt
