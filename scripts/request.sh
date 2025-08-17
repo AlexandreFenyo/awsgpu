@@ -14,15 +14,17 @@ QUESTION="$*"
 
 date
 
+mktemp /tmp/chunks-XXXXXXXXXX | read PREFIX
+
 echo searching chunks:
-./src/pipeline-advanced/search_chunks.py "$QUESTION" > /tmp/chunks.txt
+./src/pipeline-advanced/search_chunks.py "$QUESTION" > $PREFIX.jsonl
 
 echo
 echo making request:
 if [ $DRY_RUN -eq 1 ]; then
-  ./src/pipeline-advanced/merge_chunks.sh -n /tmp/chunks.txt "$QUESTION"
+  ./src/pipeline-advanced/merge_chunks.sh -n $PREFIX.jsonl "$QUESTION"
 else
-  ./src/pipeline-advanced/merge_chunks.sh /tmp/chunks.txt "$QUESTION"
+  ./src/pipeline-advanced/merge_chunks.sh $PREFIX.jsonl "$QUESTION"
 fi
 
 date
