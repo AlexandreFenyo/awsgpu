@@ -16,7 +16,7 @@ Constraints and behavior:
 - Simple token estimation without external libraries (based on word count).
 - No chunk crosses heading boundaries.
 - List blocks are kept intact (never split across chunks), even if that exceeds the token budget.
-- Additionally, if a list block immediately follows a paragraph within the same heading level, that preceding paragraph is merged with the list into the same chunk.
+- Additionally, if a list block immediately follows paragraphs within the same heading level, the two preceding paragraphs (if present) are merged with the list into the same chunk.
 - Markdown tables are converted to simple text preserving their content.
 - Metadata includes:
   - Keywords extracted from the chunk text (simple top-N by frequency, minus stopwords).
@@ -160,10 +160,11 @@ def _parse_list_block(lines: List[str], start_idx: int) -> Tuple[str, int]:
 def _collect_previous_paragraph(lines: List[str], list_start_idx: int) -> Tuple[Optional[List[str]], int]:
     """
     If a list block at list_start_idx is immediately preceded (ignoring blank lines)
-    by a regular paragraph within the same heading (i.e., no intervening heading),
-    return (para_lines, gap_blank_count). Otherwise return (None, 0).
+    by one or two regular paragraphs within the same heading (i.e., no intervening heading),
+    return (para_lines, gap_blank_count), where para_lines may span up to two paragraphs.
+    Otherwise return (None, 0).
     """
-    # Move to previous non-blank line
+    # Move to previous non-blank line (end of the closest paragraph)
     j = list_start_idx - 1
     gap_blank_count = 0
     while j >= 0 and lines[j].strip() == "":
@@ -177,14 +178,34 @@ def _collect_previous_paragraph(lines: List[str], list_start_idx: int) -> Tuple[
     if _heading_re.match(lines[j]) or _is_list_item_start(lines[j]):
         return None, 0
 
-    # Collect the contiguous paragraph lines up to the previous blank line (or file start).
-    para_end = j
-    k = para_end - 1
+    # Collect paragraph 1 (the closest one).
+    p1_end = j
+    k = p1_end - 1
     while k >= 0 and lines[k].strip() != "":
         k -= 1
-    para_start = k + 1
+    p1_start = k + 1
 
-    para_lines = lines[para_start : para_end + 1]
+    # Initialize range to include p1.
+    include_start = p1_start
+    include_end = p1_end
+
+    # Look for a second previous paragraph separated by blank lines,
+    # but stop if we encounter a heading or list start (to avoid crossing headings).
+    j2 = p1_start - 1
+    # Skip blanks between paragraphs
+    while j2 >= 0 and lines[j2].strip() == "":
+        j2 -= 1
+
+    if j2 >= 0 and not _heading_re.match(lines[j2]) and not _is_list_item_start(lines[j2]):
+        # Collect paragraph 2
+        p2_end = j2
+        k2 = p2_end - 1
+        while k2 >= 0 and lines[k2].strip() != "":
+            k2 -= 1
+        p2_start = k2 + 1
+        include_start = p2_start
+
+    para_lines = lines[include_start : include_end + 1]
     return para_lines, gap_blank_count
 
 
