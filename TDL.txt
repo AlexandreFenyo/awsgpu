@@ -20,3 +20,22 @@ modifier la requête pour qu'elle affiche précisément l'intention de l'utilisa
 OCR
 
 modifier les références de texte quand les objets référencés ont changé de forme dans le MarkDown
+
+------------------------------------------------------------
+
+processer la recherche par headings, puis la merger :
+
+(awsgpu-py3.13) fenyo@ordinatlexandre awsgpu % ./scripts/request.sh -n "RGPD" > /tmp/res
+
+collecting chunks for text content: /tmp/chunks-CydZ9WTBdg.jsonl
+collecting chunks for headings: /tmp/chunks-CydZ9WTBdg.headings.jsonl
+updating chunks (adding titles): /tmp/chunks-CydZ9WTBdg.jsonl.embeddings.ndjson
+
+
+
+(awsgpu-py3.13) fenyo@ordinatlexandre awsgpu % cat /tmp/chunks-CydZ9WTBdg.jsonl | jq -r '.chunk_id' | sort -u > /tmp/res1
+(awsgpu-py3.13) fenyo@ordinatlexandre awsgpu % cat /tmp/chunks-CydZ9WTBdg.headings.jsonl | jq -r '.chunk_id' | sed 's/md-headings-//' | sed 's/docx\./docx-/' | sort -u > /tmp/res2
+
+pb : presque rien en commun !
+chercher sur les titres ne sert pratiquement à rien, car le contenu des titres a peu d'infos, seuls un ou deux titres vont matcher, et on les retrouve déjà dans les chunks. Ce qui est intéressant, c'est de les avoir mis en début de chunk. Les titres servent en fait au bon découpage en chunks !
+
