@@ -1,7 +1,17 @@
 
 TDL :
 
+processer la recherche par headings, puis la merger
+
+------------------------------------------------------------
+
+Le paragraphe qui précède une liste ne doit pas être dans un autre chunk.
+OK
+
+------------------------------------------------------------
+
 Rajouter optionnellement le plus bas sous titre au tout début du texte de chaque chunk.
+OK
 
 ------------------------------------------------------------
 

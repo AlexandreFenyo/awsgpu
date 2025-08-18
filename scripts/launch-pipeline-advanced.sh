@@ -33,9 +33,14 @@ echo updating Weaviate for headings:
 ./src/pipeline-advanced/update_weaviate.py -c rag_headings_chunks $HOME/CCTP/CCTP2.docx.md.headings.chunks.jq.embeddings.ndjson
 
 echo collecting chunks for text content:
-./src/pipeline-advanced/search_chunks.py "Les CPAM sont-elles publiques ou privées ?"
+mktemp /tmp/retrieved-chunks-XXXXXXXXXX | read PREFIX
+./src/pipeline-advanced/search_chunks.py "Les CPAM sont-elles publiques ou privées ?" > $PREFIX.ndjson
 
 echo collecting chunks for headings:
-./src/pipeline-advanced/search_chunks.py -c rag_headings_chunks "Les CPAM sont-elles publiques ou privées ?"
+./src/pipeline-advanced/search_chunks.py -c rag_headings_chunks "Les CPAM sont-elles publiques ou privées ?" > $PREFIX.headings.ndjson
+
+echo updating chunks: adding titles
+./src/pipeline-advanced/process_chunks_add_title.py $PREFIX.ndjson
 
 date
+

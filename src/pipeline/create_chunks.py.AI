@@ -24,5 +24,4 @@ Le script affiche le nom du fichier produit.
 
 ----------------------------------------------------------------------
 
-Une liste n'est jamais à cheval dans plusieurs chunks, même si cela oblige à avoir plus du nombre de tokens par défaut ou choisi par l'utilisateur.
 

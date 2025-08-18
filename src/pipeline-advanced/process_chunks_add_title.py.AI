@@ -1,0 +1,17 @@
+
+Je veux développer un pipeline de RAG, pour faire de la genAI.
+
+J'ai déjà produit des chunks à partir d'un document et calculé leurs embeddings.
+
+Chaque chunk est constitué d'une ligne d'un fichier au format NDJSON, contenant notamment :
+  - le text associé au chunk
+  - les différents niveaux de headings associés à ce texte (il peut y avoir jusqu'à 6 niveaux, nommés h1, h2, h3, h4, h5 et h6, c'est à dire une lettre h suivie du numéro de niveau).
+Voici un exemple de chunk :
+{"chunk_id": "CCTP2.docx-590", "text": "La forge CI/CD constitue...", "distance": 0.6460607051849365, "approx_tokens": 186, "keywords": ["zone", "environnements", "production", "composants", "forge"], "headings": {"h4": "Description générale de la forge d’intégration et de déploiement continus", "h1": "Prestations adressées par l’accord-cadre", "h3": "Mise en œuvre d’une plateforme d’intégration continue et de déploiement continu afin de reprendre le patrimoine MES et DMP", "h2": "P1.2 - Rep : Reprise de l’existant"}, "created_at": "2025-08-18T09:29:35Z"}
+
+Je veux désormais un script qui prend ce fichier en entrée et qui, pour chaque ligne, la reproduit avec la seule modification suivante : il faut rajouter au début du texte le contenu du heading dont le numéro de niveau est le plus grand, et le faire suivre du délimiteur suivant : \n\n. S'il n'y a pas de heading, il ne faut rien rajouter.
+
+Ce script prend en entrée le nom du fichier d'entrée.
+Le nom du fichier de sortie est composé du nom de fichier d'entrée auquel on ajoute le suffixe ".embeddings.ndjson".
+Le script affiche le nom du fichier produit.
+

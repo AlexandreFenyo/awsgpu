@@ -22,4 +22,16 @@ Je ne veux pas d'autres raffinements.
 Le nom de fichier de sortie contenant les chunks est composé du nom de fichier d'entrée auquel on ajoute le suffixe ".chunks.jq"
 Le script affiche le nom du fichier produit.
 
+------------------------------------------------------------
 
+Une liste n'est jamais à cheval dans plusieurs chunks, même si cela oblige à avoir plus du nombre de tokens par défaut ou choisi par l'utilisateur.
+
+------------------------------------------------------------
+
+The script has been created this way: list blocks are kept intact (never split across chunks), even if that exceeds the token budget.
+I now want to add to this behaviour that each list block includes its previous paragraph, in the same chunk, sauf si cela conduirait à ce que ce chunk soit à cheval entre plusieurs niveaux de titre, évidemment.
+
+------------------------------------------------------------
+
+Previously, I asked you to add a new behaviour : each list block includes its previous paragraph, in the same chunk, sauf si cela conduirait à ce que ce chunk soit à cheval entre plusieurs niveaux de titre, évidemment.
+I now want you to update this behaviour : not only include the previous paragraph, but the 2 previous ones.
