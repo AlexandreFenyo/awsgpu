@@ -16,6 +16,7 @@ Constraints and behavior:
 - Simple token estimation without external libraries (based on word count).
 - No chunk crosses heading boundaries.
 - List blocks are kept intact (never split across chunks), even if that exceeds the token budget.
+- Additionally, if a list block immediately follows a paragraph within the same heading level, that preceding paragraph is merged with the list into the same chunk.
 - Markdown tables are converted to simple text preserving their content.
 - Metadata includes:
   - Keywords extracted from the chunk text (simple top-N by frequency, minus stopwords).
@@ -155,6 +156,38 @@ def _parse_list_block(lines: List[str], start_idx: int) -> Tuple[str, int]:
 
     return "\n".join(collected), i
 
+
+def _collect_previous_paragraph(lines: List[str], list_start_idx: int) -> Tuple[Optional[List[str]], int]:
+    """
+    If a list block at list_start_idx is immediately preceded (ignoring blank lines)
+    by a regular paragraph within the same heading (i.e., no intervening heading),
+    return (para_lines, gap_blank_count). Otherwise return (None, 0).
+    """
+    # Move to previous non-blank line
+    j = list_start_idx - 1
+    gap_blank_count = 0
+    while j >= 0 and lines[j].strip() == "":
+        gap_blank_count += 1
+        j -= 1
+
+    if j < 0:
+        return None, 0
+
+    # If the previous non-blank line is a heading or a list start, do not include it.
+    if _heading_re.match(lines[j]) or _is_list_item_start(lines[j]):
+        return None, 0
+
+    # Collect the contiguous paragraph lines up to the previous blank line (or file start).
+    para_end = j
+    k = para_end - 1
+    while k >= 0 and lines[k].strip() != "":
+        k -= 1
+    para_start = k + 1
+
+    para_lines = lines[para_start : para_end + 1]
+    return para_lines, gap_blank_count
+
+
 def extract_keywords(text: str, top_n: int = 5) -> List[str]:
     """
     Simple keyword extraction:
@@ -273,6 +306,29 @@ def build_chunks_from_markdown(
         if _is_list_item_start(line):
             list_text, next_i = _parse_list_block(lines, i)
             if list_text:
+                # Try to include the immediately preceding paragraph in the same chunk,
+                # as long as there is no intervening heading (to avoid spanning headings).
+                para_lines, gap_blanks = _collect_previous_paragraph(lines, i)
+                if para_lines:
+                    # Remove the paragraph lines (and trailing blanks) that were already buffered.
+                    popped_blanks = 0
+                    while buffer_blocks and buffer_blocks[-1].strip() == "":
+                        buffer_blocks.pop()
+                        popped_blanks += 1
+
+                    idx_end = len(buffer_blocks)
+                    if idx_end >= len(para_lines) and buffer_blocks[idx_end - len(para_lines) : idx_end] == para_lines:
+                        del buffer_blocks[idx_end - len(para_lines) : idx_end]
+                        # Build a combined block so it can't be split across chunks.
+                        separator = "\n\n" if gap_blanks > 0 else "\n"
+                        combined = "\n".join(para_lines) + separator + list_text
+                        buffer_blocks.append(combined)
+                        i = next_i
+                        continue
+                    else:
+                        # Restore popped blanks; fall back to regular list handling.
+                        buffer_blocks.extend([""] * popped_blanks)
+
                 buffer_blocks.append(list_text)
                 i = next_i
                 continue
