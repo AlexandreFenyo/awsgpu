@@ -44,3 +44,7 @@ Pour chaque embedding d'un niveau de titre, fais en sorte qu'on puisse savoir à
 ------------------------------------------------------------
 
 A chaque fois que tu calcules un embedding qui n'est pas en cache, affiche le contenu dont tu calcules l'embedding, en le préfixant par le chaine : "computing embedding for: ".
+
+------------------------------------------------------------
+
+Rajoute une option de ligne de commande pour qu'on puisse demander à ne pas calculer les embeddings des headings.

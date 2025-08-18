@@ -3,9 +3,9 @@
 Create heading-only chunks from a Markdown file for a RAG pipeline.
 
 - Input: a Markdown file path.
-- Output: JSONL (<input>.headers.chunks.jq) where each line is a chunk:
+- Output: JSONL (<input>.headings.chunks.jq) where each line is a chunk:
     {
-      "chunk_id": "<input-filename>-headers-<n>",
+      "chunk_id": "<input-filename>-headings-<n>",
       "text": "<heading title only>",
       "metadata": {
         "headings": {"h1": "...", "h2": "...", ...},  # active heading context including current
@@ -127,7 +127,7 @@ def build_heading_chunks_from_markdown(md_text: str, source: str) -> List[Dict]:
     # Ensure chunk_ids are sequential and stable, using the input filename (including extension)
     base_name = Path(source).name
     for idx, ch in enumerate(chunks, start=1):
-        ch["chunk_id"] = f"{base_name}-headers-{idx}"
+        ch["chunk_id"] = f"{base_name}-headings-{idx}"
 
     return chunks
 
@@ -138,7 +138,7 @@ def write_chunks_jsonl(chunks: List[Dict], outpath: Path) -> None:
 
 def convert_markdown_headings_to_chunks(input_path: str) -> str:
     """
-    Convert a Markdown file into heading-only chunks JSONL (.headers.chunks.jq).
+    Convert a Markdown file into heading-only chunks JSONL (.headings.chunks.jq).
     Returns the output file path as a string.
     """
     src = Path(input_path)
@@ -147,7 +147,7 @@ def convert_markdown_headings_to_chunks(input_path: str) -> str:
     text = src.read_text(encoding="utf-8")
 
     chunks = build_heading_chunks_from_markdown(text, source=str(src))
-    out_path = Path(f"{input_path}.headers.chunks.jq")
+    out_path = Path(f"{input_path}.headings.chunks.jq")
     write_chunks_jsonl(chunks, out_path)
     return str(out_path)
 

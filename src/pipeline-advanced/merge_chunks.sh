@@ -42,7 +42,7 @@ REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-mini", "messa
 echo
 echo -n "Input tokens: "
 echo "$REQUEST" | ./src/pipeline-advanced/count_tokens.py
-
+echo
 
 if (( DRY_RUN )); then
   echo "$REQUEST"
