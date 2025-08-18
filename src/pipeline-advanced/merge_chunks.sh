@@ -39,6 +39,11 @@ PROMPT_CONTENT=`cat "$PREFIX.prompt"`
 
 REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": $content}]}')
 
+echo
+echo -n "Input tokens: "
+echo "$REQUEST" | ./src/pipeline-advanced/count_tokens.py
+
+
 if (( DRY_RUN )); then
   echo "$REQUEST"
   exit 0
