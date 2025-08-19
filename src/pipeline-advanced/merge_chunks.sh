@@ -39,6 +39,7 @@ echo "Voici les questions :\n$QUESTIONS" >> "$PREFIX.prompt"
 
 PROMPT_CONTENT=`cat "$PREFIX.prompt"`
 
+# REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-nano", "messages": [{"role": "user", "content": $content}]}')
 REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": $content}]}')
 
 echo
