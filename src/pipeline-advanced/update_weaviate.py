@@ -35,9 +35,12 @@ def _connect_local():
     return weaviate.connect_to_local()
 
 
-def _ensure_collection(client, name: str):
+def _ensure_collection(client, name: str, recreate: bool = True):
     """
     Ensure a collection exists with vectorizer disabled and an appropriate schema.
+
+    If recreate is True, delete any existing collection and create it fresh with the expected schema.
+    If recreate is False, attempt to use the existing collection; if it doesn't exist, create it.
     """
     props = [
         Property(name="chunk_id", data_type=DataType.TEXT),
@@ -66,14 +69,6 @@ def _ensure_collection(client, name: str):
             ],
         ),
     ]
-
-    # Always recreate to ensure the expected named multi-vector schema is present.
-    # This avoids mismatches with previously created collections that lacked named vectors.
-    try:
-        client.collections.delete(name)
-    except Exception:
-        # Ignore if it doesn't exist yet
-        pass
 
     vectors_conf = [
         {
@@ -112,13 +107,30 @@ def _ensure_collection(client, name: str):
             "vector_index_config": Configure.VectorIndex.hnsw(),
         },
     ]
-    coll = client.collections.create(
-        name=name,
-        properties=props,
-        vector_config=vectors_conf,
-    )
-    # After creation, fetch a handle to the collection
-    return client.collections.get(name)
+
+    if recreate:
+        try:
+            client.collections.delete(name)
+        except Exception:
+            # Ignore if it doesn't exist yet
+            pass
+        client.collections.create(
+            name=name,
+            properties=props,
+            vector_config=vectors_conf,
+        )
+        return client.collections.get(name)
+
+    # No recreation: try to use existing collection; create only if missing.
+    try:
+        return client.collections.get(name)
+    except Exception:
+        client.collections.create(
+            name=name,
+            properties=props,
+            vector_config=vectors_conf,
+        )
+        return client.collections.get(name)
 
 
 def _to_float_list(vec: Any) -> Optional[List[float]]:
@@ -130,7 +142,7 @@ def _to_float_list(vec: Any) -> Optional[List[float]]:
         return None
 
 
-def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_chunks") -> int:
+def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_chunks", recreate: bool = True) -> int:
     """
     Read an embeddings NDJSON file and upload objects with their vectors to Weaviate.
     Returns the number of inserted objects.
@@ -141,7 +153,7 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
 
     client = _connect_local()
     try:
-        coll = _ensure_collection(client, collection_name)
+        coll = _ensure_collection(client, collection_name, recreate=recreate)
 
         inserted = 0
         # Insert one by one using data.insert to support named vectors across client versions.
@@ -211,10 +223,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         default="rag_chunks",
         help='Weaviate collection name to use/create (default: "rag_chunks")',
     )
+    parser.add_argument(
+        "-n",
+        "--no-recreate",
+        action="store_true",
+        help="Ne pas recréer la collection et son schéma s'ils existent déjà.",
+    )
     args = parser.parse_args(argv)
 
     try:
-        count = upload_embeddings_to_weaviate(args.input, collection_name=args.collection_name)
+        count = upload_embeddings_to_weaviate(
+            args.input,
+            collection_name=args.collection_name,
+            recreate=(not args.no_recreate),
+        )
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
