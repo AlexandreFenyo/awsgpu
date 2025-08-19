@@ -30,3 +30,7 @@ Il est composé de deux étapes :
 
 Comme Weaviate est multi-vecteurs, modifie le script pour qu'il envoie tous les embeddings, pas seulement ceux de text, mais aussi ceux des headings.
 Modifie en conséquence le schéma, quand il est créé.
+
+------------------------------------------------------------
+
+Rajoute une option nommée -n qui, lorsqu'elle est sélectionnée, évite de recréer la collection et son schéma.

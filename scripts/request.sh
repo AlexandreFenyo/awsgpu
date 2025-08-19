@@ -21,9 +21,9 @@ echo -n "collecting chunks for text content: "
 ./src/pipeline-advanced/search_chunks.py "$QUESTION" > $PREFIX.jsonl
 echo $PREFIX.jsonl
 
-echo -n "collecting chunks for headings: "
-./src/pipeline-advanced/search_chunks.py -c rag_headings_chunks "$QUESTION" > $PREFIX.headings.jsonl
-echo $PREFIX.headings.jsonl
+#echo -n "collecting chunks for headings: "
+#./src/pipeline-advanced/search_chunks.py -c rag_headings_chunks "$QUESTION" > $PREFIX.headings.jsonl
+#echo $PREFIX.headings.jsonl
 
 echo -n "updating chunks (adding titles): "
 ./src/pipeline-advanced/process_chunks_add_title.py $PREFIX.jsonl
