@@ -21,6 +21,8 @@ OCR
 
 modifier les références de texte quand les objets référencés ont changé de forme dans le MarkDown
 
+identifier les references et les mettre dans les metadata, le reranking permettra de les utiliser si elles sont utiles
+
 ------------------------------------------------------------
 
 processer la recherche par headings, puis la merger :
