@@ -52,5 +52,7 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
-curl https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${OPENAIAPIKEY}" -d "$REQUEST" > "$PREFIX.prompt.answer"
-cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
+# Décommenter la ligne correspondant au modèle sur lequel s'appuyer :
+#echo "$REQUEST" | /mnt/c/Users/Alexandre\ Fenyo/AppData/Local/Programs/Ollama/ollama.exe run gpt-oss:20b
+echo "$REQUEST" | /mnt/c/Users/Alexandre\ Fenyo/AppData/Local/Programs/Ollama/ollama.exe run gpt-oss:120b
+#curl https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${OPENAIAPIKEY}" -d "$REQUEST" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
