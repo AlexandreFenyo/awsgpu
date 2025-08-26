@@ -21,6 +21,7 @@ Constraints and behavior:
 - List blocks are kept intact (never split across chunks), even if that exceeds the token budget.
 - Additionally, if a list block immediately follows paragraphs within the same heading level, the two preceding paragraphs (if present) are merged with the list into the same chunk.
 - Markdown tables are converted to simple text preserving their content.
+- HTML tables (<table>...</table>) are treated as atomic blocks that are never split; they also include up to the two immediately preceding paragraphs within the same heading (never across headings).
 - Top-level fields include:
   - Keywords extracted from the chunk text (simple top-N by frequency, minus stopwords).
   - The active heading levels for the chunk.
@@ -125,6 +126,35 @@ def parse_table_block(lines: List[str], start_idx: int) -> Tuple[str, int]:
 
     table_text = "TABLE:\n" + "\n".join(rendered_rows)
     return table_text, i
+
+
+def parse_html_table_block(lines: List[str], start_idx: int) -> Tuple[str, int]:
+    """
+    Parse an HTML <table>...</table> block starting at start_idx (case-insensitive).
+    Returns (block_text, next_index). The block is kept intact.
+    """
+    i = start_idx
+    if i >= len(lines):
+        return "", i
+
+    line = lines[i]
+    if not re.match(r"^\s*<table\b", line, flags=re.IGNORECASE):
+        return "", i
+
+    depth = 0
+    collected: List[str] = []
+    while i < len(lines):
+        cur = lines[i]
+        opens = len(re.findall(r"<table\b", cur, flags=re.IGNORECASE))
+        closes = len(re.findall(r"</table\s*>", cur, flags=re.IGNORECASE))
+        depth += opens
+        collected.append(cur)
+        depth -= closes
+        i += 1
+        if depth <= 0:
+            break
+
+    return "\n".join(collected), i
 
 
 def _is_list_item_start(line: str) -> bool:
@@ -329,7 +359,34 @@ def build_chunks_from_markdown(
             i += 1
             continue
 
-        # Table block?
+        # HTML table block?
+        html_table_text, next_i = parse_html_table_block(lines, i)
+        if html_table_text:
+            # Include up to two immediately preceding paragraphs within the same heading.
+            para_lines, gap_blanks = _collect_previous_paragraph(lines, i)
+            if para_lines:
+                popped_blanks = 0
+                while buffer_blocks and buffer_blocks[-1].strip() == "":
+                    buffer_blocks.pop()
+                    popped_blanks += 1
+
+                idx_end = len(buffer_blocks)
+                if idx_end >= len(para_lines) and buffer_blocks[idx_end - len(para_lines) : idx_end] == para_lines:
+                    del buffer_blocks[idx_end - len(para_lines) : idx_end]
+                    separator = "\n\n" if gap_blanks > 0 else "\n"
+                    combined = "\n".join(para_lines) + separator + html_table_text
+                    buffer_blocks.append(combined)
+                    i = next_i
+                    continue
+                else:
+                    # Restore popped blanks; fall back to plain table handling.
+                    buffer_blocks.extend([""] * popped_blanks)
+
+            buffer_blocks.append(html_table_text)
+            i = next_i
+            continue
+
+        # Markdown table block?
         table_text, next_i = parse_table_block(lines, i)
         if table_text:
             buffer_blocks.append(table_text)
