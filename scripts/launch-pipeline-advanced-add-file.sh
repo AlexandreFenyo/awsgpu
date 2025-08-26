@@ -2,11 +2,14 @@
 
 # Options:
 # -n: do not create collection nor schema, when processing a new document
+# -m: do not convert document to markdown, start from the md file
 NEW_DOC=""
-while getopts "nh" opt; do
+NO_CONVERT=""
+while getopts "nmh" opt; do
   case "$opt" in
       n) NEW_DOC="-n" ;;
-      h) echo 'Usage: "$0" [-h] [-n] DOCUMENT' ; exit 0 ;;
+      m) NO_CONVERT="-m" ;;
+      h) echo 'Usage: "$0" [-h] [-n] [-m] DOCUMENT' ; exit 0 ;;
     *) ;;
   esac
 done
@@ -20,8 +23,11 @@ fi
 
 INPUT_FILE=$1
 
-echo converting document:
-./src/pipeline-advanced/convert_to_markdown.py $INPUT_FILE
+if test -z "$NO_CONVERT"
+then
+    echo converting document:
+    ./src/pipeline-advanced/convert_to_markdown.py $INPUT_FILE
+fi
 
 echo creating chunks for text content:
 ./src/pipeline-advanced/create_chunks.py $INPUT_FILE.md
@@ -30,7 +36,7 @@ echo creating chunks for text content:
 #./src/pipeline-advanced/create_headings_chunks.py $INPUT_FILE.md
 
 echo removing embeddings cache:
-rm -f $HOME/CCTP/$INPUT_FILE.md.chunks.jq.paraphrase-xlm-r-multilingual-v1.emb_cache.jsonl
+rm -f $INPUT_FILE.md.chunks.jq.paraphrase-xlm-r-multilingual-v1.emb_cache.jsonl
 
 echo creating embeddings for text content:
 ./src/pipeline-advanced/create_embeddings.py $INPUT_FILE.md.chunks.jq

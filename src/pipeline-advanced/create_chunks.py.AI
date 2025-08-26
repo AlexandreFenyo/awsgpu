@@ -70,3 +70,8 @@ Avec l'exemple précédent, cela doit donner :
       "keywords": ["...", ...],
       "approx_tokens": 123
     }
+
+------------------------------------------------------------
+
+Une table HTML (désignée par les balises HTML correspondantes) n'est jamais à cheval dans plusieurs chunks, même si cela oblige à avoir plus du nombre de tokens par défaut ou choisi par l'utilisateur.
+Moreover, each HTML table includes its two previous paragraphs, in the same chunk, sauf si cela conduirait à ce que ce chunk soit à cheval entre plusieurs niveaux de titre, évidemment.
