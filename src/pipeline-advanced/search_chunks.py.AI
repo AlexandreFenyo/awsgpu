@@ -34,3 +34,20 @@ Supprime l'option -l et son traitement, ça ne sert plus à rien.
 
 ------------------------------------------------------------
 
+{
+      "chunk_id": "...",
+      "text": "...",
+      "embedding": [floats],
+      "model": {"name": "...", "version": "..."},
+      "created_at": "YYYY-MM-DDTHH:MM:SSZ",
+      "approx_tokens": 123,
+      "keywords": ["...", ...],
+      "headings": {"h1": "...", "h2": "...", ...}
+    }
+
+------------------------------------------------------------
+
+src/pipeline-advanced/create_embeddings.py src/pipeline-advanced/search_chunks.py src/pipeline-advanced/update_weaviate.py
+
+En plus des propriétés comme chunk_id, text, headings, etc., fait en sorte de traiter les propriétés full_headings et heading, quand elles ne le sont pas.
+Ces propriétés, au même niveau que chunk_id, text et headings, par ex., doivent être consommées et produites systématiquement.
