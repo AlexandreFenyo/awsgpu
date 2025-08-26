@@ -8,7 +8,6 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
       "chunk_id": "...",
       "text": "...",
       "embedding": [floats],
-      "embeddings": [{"level": "hN", "embedding": [floats]}, ...],
       "model": {"name": "...", "version": "..."},
       "created_at": "YYYY-MM-DDTHH:MM:SSZ",
       "approx_tokens": 123,
@@ -18,7 +17,6 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
 
 Behavior:
 - Uses sentence-transformers with the 'paraphrase-xlm-r-multilingual-v1' model.
-- For each chunk, also computes embeddings for each heading level present (h1..h6) and outputs them under "embeddings" as objects with their level label (e.g., {"level": "h2", "embedding": [...]}) ordered by level.
 - Caches embeddings on disk to avoid recomputation across runs (per-model cache).
 - Streams input and encodes in small batches to limit memory use.
 - Prints the produced output filename.
@@ -60,7 +58,7 @@ def _extract_meta(chunk: Dict) -> tuple[List[str], Dict[str, str]]:
     return keywords, headings
 
 
-def convert_chunks_to_embeddings(input_path: str, include_heading_embeddings: bool = True) -> str:
+def convert_chunks_to_embeddings(input_path: str) -> str:
     """
     Read chunks JSONL and write embeddings NDJSON to <input>.embeddings.ndjson.
     Returns the output file path as a string.
@@ -155,82 +153,9 @@ def convert_chunks_to_embeddings(input_path: str, include_heading_embeddings: bo
         # At this point, all text_embs are filled
         text_embs_filled: List[List[float]] = [e for e in text_embs if e is not None]  # type: ignore
 
-        if not include_heading_embeddings:
-            per_row_embeddings: List[List[Dict[str, object]]] = [[] for _ in rows]
-        else:
-            # Prepare per-row heading texts ordered by level, and remember their levels
-            flat_headings: List[str] = []
-            flat_levels: List[str] = []
-            counts_per_row: List[int] = []
-            for item in rows:
-                _, headings = _extract_meta(item)
-                ordered_pairs = [
-                    (f"h{level}", title)
-                    for level, title in sorted(
-                        (
-                            (int(k[1:]), v)
-                            for k, v in headings.items()
-                            if isinstance(k, str) and k.startswith("h") and isinstance(v, str) and v.strip()
-                        ),
-                        key=lambda t: t[0],
-                    )
-                ]
-                counts_per_row.append(len(ordered_pairs))
-                for lvl, title in ordered_pairs:
-                    flat_levels.append(lvl)
-                    flat_headings.append(title)
-
-            # Resolve heading embeddings via cache
-            heading_embs_list: List[List[float]] = []
-            if flat_headings:
-                heading_keys = [_cache_key(h) for h in flat_headings]
-                heading_embs_opt: List[Optional[List[float]]] = [emb_cache.get(k) for k in heading_keys]
-                to_compute_idx_h = [i for i, e in enumerate(heading_embs_opt) if e is None]
-                if to_compute_idx_h:
-                    to_compute_headings = [flat_headings[i] for i in to_compute_idx_h]
-                    for h in to_compute_headings:
-                        print(f"computing embedding for: {h}")
-                    computed_h = model.encode(
-                        to_compute_headings,
-                        batch_size=min(_BATCH_SIZE, len(to_compute_headings)),
-                        convert_to_numpy=True,
-                        show_progress_bar=False,
-                    )
-                    if isinstance(computed_h, np.ndarray):
-                        computed_h_list: List[List[float]] = computed_h.astype(float).tolist()
-                    elif isinstance(computed_h, list):
-                        computed_h_list = [list(map(float, e)) for e in computed_h]
-                    else:
-                        computed_h_list = [list(map(float, np.array(computed_h).astype(float).tolist()))]
-
-                    new_cache_items_h: List[tuple[str, List[float]]] = []
-                    for pos, vec in zip(to_compute_idx_h, computed_h_list):
-                        k = heading_keys[pos]
-                        emb_cache[k] = vec
-                        heading_embs_opt[pos] = vec
-                        new_cache_items_h.append((k, vec))
-                    _persist_cache_items(new_cache_items_h)
-
-                heading_embs_list = [e for e in heading_embs_opt if e is not None]  # type: ignore
-            else:
-                heading_embs_list = []
-
-            # Reconstruct per-row arrays of heading embeddings with corresponding level labels.
-            per_row_embeddings: List[List[Dict[str, object]]] = []
-            idx = 0
-            for count in counts_per_row:
-                if count == 0:
-                    per_row_embeddings.append([])
-                else:
-                    levels_slice = flat_levels[idx : idx + count]
-                    embs_slice = heading_embs_list[idx : idx + count]
-                    per_row_embeddings.append(
-                        [{"level": lvl, "embedding": emb} for lvl, emb in zip(levels_slice, embs_slice)]
-                    )
-                    idx += count
 
         with out_path.open("a", encoding="utf-8") as out_f:
-            for item, text_emb, heading_embs in zip(rows, text_embs_filled, per_row_embeddings):
+            for item, text_emb in zip(rows, text_embs_filled):
                 keywords, headings = _extract_meta(item)
                 text = item.get("text", "")
                 if not isinstance(text, str):
@@ -239,7 +164,6 @@ def convert_chunks_to_embeddings(input_path: str, include_heading_embeddings: bo
                     "chunk_id": item.get("chunk_id"),
                     "text": text,
                     "embedding": text_emb,
-                    "embeddings": heading_embs,
                     "model": model_info,
                     "created_at": created_at,
                     "approx_tokens": item.get("approx_tokens"),
@@ -288,15 +212,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         "input",
         help="Path to the input chunks file (JSONL)",
     )
-    parser.add_argument(
-        "--no-heading-embeddings",
-        action="store_true",
-        help="Skip computing heading embeddings (h1..h6) for chunks",
-    )
     args = parser.parse_args(argv)
 
     try:
-        produced = convert_chunks_to_embeddings(args.input, include_heading_embeddings=not args.no_heading_embeddings)
+        produced = convert_chunks_to_embeddings(args.input)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
