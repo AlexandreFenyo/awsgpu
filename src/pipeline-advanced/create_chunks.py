@@ -7,7 +7,8 @@ Create chunks from a Markdown file for a simple RAG pipeline.
     {
       "chunk_id": "...",
       "text": "...",
-      "metadata": { "headings": {"h1": "...", "h2": "...", ...}, "keywords": ["...", ...] },
+      "headings": {"h1": "...", "h2": "...", ...},
+      "keywords": ["...", ...],
       "approx_tokens": 123
     }
 
@@ -18,7 +19,7 @@ Constraints and behavior:
 - List blocks are kept intact (never split across chunks), even if that exceeds the token budget.
 - Additionally, if a list block immediately follows paragraphs within the same heading level, the two preceding paragraphs (if present) are merged with the list into the same chunk.
 - Markdown tables are converted to simple text preserving their content.
-- Metadata includes:
+- Top-level fields include:
   - Keywords extracted from the chunk text (simple top-N by frequency, minus stopwords).
   - The active heading levels for the chunk.
 """
@@ -270,10 +271,8 @@ def build_chunks_from_markdown(
                 {
                     "chunk_id": f"{Path(source).name}-h{'.'.join(str(k) for k in sorted(headings.keys())) or '0'}-{len(chunks)+1}",
                     "text": out_text,
-                    "metadata": {
-                        "headings": meta_headings,
-                        "keywords": keywords,
-                    },
+                    "headings": meta_headings,
+                    "keywords": keywords,
                     "approx_tokens": estimate_tokens(out_text),
                 }
             )

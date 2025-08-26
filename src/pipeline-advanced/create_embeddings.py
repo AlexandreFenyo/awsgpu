@@ -48,9 +48,10 @@ def _iso_utc_now() -> str:
 
 
 def _extract_meta(chunk: Dict) -> tuple[List[str], Dict[str, str]]:
+    # Prefer top-level fields; fall back to legacy "metadata" container for backward compatibility.
     meta = chunk.get("metadata") or {}
-    keywords = meta.get("keywords") or []
-    headings = meta.get("headings") or {}
+    keywords = chunk.get("keywords", meta.get("keywords", []))
+    headings = chunk.get("headings", meta.get("headings", {}))
     # Ensure types are correct
     if not isinstance(keywords, list):
         keywords = []
