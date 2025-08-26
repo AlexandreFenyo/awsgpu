@@ -12,7 +12,9 @@ Create embeddings from Markdown chunks for a simple RAG pipeline.
       "created_at": "YYYY-MM-DDTHH:MM:SSZ",
       "approx_tokens": 123,
       "keywords": ["...", ...],
-      "headings": {"h1": "...", "h2": "...", ...}
+      "headings": {"h1": "...", "h2": "...", ...},
+      "heading": {"hN": "..."},
+      "full_headings": "..."
     }
 
 Behavior:
@@ -45,17 +47,23 @@ def _iso_utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _extract_meta(chunk: Dict) -> tuple[List[str], Dict[str, str]]:
+def _extract_meta(chunk: Dict) -> tuple[List[str], Dict[str, str], Dict[str, str], str]:
     # Prefer top-level fields; fall back to legacy "metadata" container for backward compatibility.
     meta = chunk.get("metadata") or {}
     keywords = chunk.get("keywords", meta.get("keywords", []))
     headings = chunk.get("headings", meta.get("headings", {}))
+    heading = chunk.get("heading", meta.get("heading", {}))
+    full_headings = chunk.get("full_headings", meta.get("full_headings", ""))
     # Ensure types are correct
     if not isinstance(keywords, list):
         keywords = []
     if not isinstance(headings, dict):
         headings = {}
-    return keywords, headings
+    if not isinstance(heading, dict):
+        heading = {}
+    if not isinstance(full_headings, str):
+        full_headings = ""
+    return keywords, headings, heading, full_headings
 
 
 def convert_chunks_to_embeddings(input_path: str) -> str:
@@ -156,7 +164,7 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
 
         with out_path.open("a", encoding="utf-8") as out_f:
             for item, text_emb in zip(rows, text_embs_filled):
-                keywords, headings = _extract_meta(item)
+                keywords, headings, heading, full_headings = _extract_meta(item)
                 text = item.get("text", "")
                 if not isinstance(text, str):
                     text = str(text)
@@ -169,6 +177,8 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
                     "approx_tokens": item.get("approx_tokens"),
                     "keywords": keywords,
                     "headings": headings,
+                    "heading": heading,
+                    "full_headings": full_headings,
                 }
                 out_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 

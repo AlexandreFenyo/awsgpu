@@ -13,7 +13,7 @@ Usage:
   ./src/pipeline-advanced/search_chunks.py -k 25 -c rag_chunks "contrat de maintenance"
 
 Each result line includes:
-  { chunk_id, text, distance, approx_tokens, keywords, headings, created_at }
+  { chunk_id, text, distance, approx_tokens, keywords, headings, heading, full_headings, created_at }
 """
 
 from __future__ import annotations
@@ -69,6 +69,8 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
                 "keywords",
                 "created_at",
                 QueryNested(name="headings", properties=["h1", "h2", "h3", "h4", "h5", "h6"]),
+                QueryNested(name="heading", properties=["h1", "h2", "h3", "h4", "h5", "h6"]),
+                "full_headings",
             ],
             return_metadata=MetadataQuery(distance=True),
         )
@@ -84,6 +86,8 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
                     "approx_tokens": props.get("approx_tokens"),
                     "keywords": props.get("keywords"),
                     "headings": props.get("headings"),
+                    "heading": props.get("heading"),
+                    "full_headings": props.get("full_headings"),
                     "created_at": props.get("created_at"),
                 }
             )
