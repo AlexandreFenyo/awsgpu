@@ -27,3 +27,10 @@ Avec l'option "-l" suivie d'un numéro indiquant le niveau de titre, la recherch
 ------------------------------------------------------------
 
 Le nom de la collection est configurable comme dans les autres scripts, avec la même valeur par défaut que dans les autres scripts.
+
+------------------------------------------------------------
+
+Supprime l'option -l et son traitement, ça ne sert plus à rien.
+
+------------------------------------------------------------
+

@@ -48,3 +48,32 @@ A chaque fois que tu calcules un embedding qui n'est pas en cache, affiche le co
 ------------------------------------------------------------
 
 Rajoute une option de ligne de commande pour qu'on puisse demander à ne pas calculer les embeddings des headings.
+
+------------------------------------------------------------
+
+Modifie le format de sortie de create_chunks.py et celui d'entrée de create_embeddings.py comme ceci : au lieu de mettre les metadata dans un champ json spécifique, mets les metadata au même niveau que le reste.
+Voici un exemple :
+au lieu de :
+    {
+      "chunk_id": "...",
+      "text": "...",
+      "metadata": { "headings": {"h1": "...", "h2": "...", ...}, "keywords": ["...", ...] },
+      "approx_tokens": 123
+    }
+il faut que create_chunks.py produise :
+    {
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "...", "h2": "...", ...},
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+    }
+
+Comme create_embeddings.py prend en entrée ce que create_chunks.py produit, mets à jour create_embeddings.py pour qu'il continue à fonctionner correctement.
+
+------------------------------------------------------------
+
+Modifie le format ndjson de sortie pour ne plus traiter la demande suivante : que chaque chunk intègre, en plus de l'embedding du texte déjà présent, un tableau d'embeddings, dont chaque élément de ce tableau est un embedding d'un niveau de titre.
+Il ne faut donc plus les calculer ni les mettre dans le fichier de sortie. En effet, ça ne sert à rien dans le traitement global.
+
+------------------------------------------------------------

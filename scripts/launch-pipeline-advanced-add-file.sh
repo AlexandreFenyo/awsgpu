@@ -33,7 +33,7 @@ echo removing embeddings cache:
 rm -f $HOME/CCTP/$INPUT_FILE.md.chunks.jq.paraphrase-xlm-r-multilingual-v1.emb_cache.jsonl
 
 echo creating embeddings for text content:
-./src/pipeline-advanced/create_embeddings.py --no-heading-embeddings $INPUT_FILE.md.chunks.jq
+./src/pipeline-advanced/create_embeddings.py $INPUT_FILE.md.chunks.jq
 
 echo updating Weaviate for text content:
 if test -z "$NEW_DOC"

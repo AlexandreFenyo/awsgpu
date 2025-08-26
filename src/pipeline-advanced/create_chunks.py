@@ -277,7 +277,7 @@ def build_chunks_from_markdown(
                 deepest_level = max(headings.keys())
                 deepest_heading = {f"h{deepest_level}": headings[deepest_level]}
             titles = [headings[lvl] for lvl in sorted(headings.keys())]
-            full_headings = ", ".join([t for t in titles if t])
+            full_headings = "; ".join([t for t in titles if t])
 
             chunks.append(
                 {

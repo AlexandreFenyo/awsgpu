@@ -35,3 +35,38 @@ I now want to add to this behaviour that each list block includes its previous p
 
 Previously, I asked you to add a new behaviour : each list block includes its previous paragraph, in the same chunk, sauf si cela conduirait à ce que ce chunk soit à cheval entre plusieurs niveaux de titre, évidemment.
 I now want you to update this behaviour : not only include the previous paragraph, but the 2 previous ones.
+
+------------------------------------------------------------
+
+Modifie la sortie de ce script pour que chaque chunk en jsonl contienne en plus la clé "heading" qui est le heading de plus bas niveau (celui avec le plus grand nombre suivant le "h" de son nom).
+Par exemple, si la sortie est actuellement :
+{
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "un titre", "h2": "un nom de section"},
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+    }
+  
+Alors la sortie doit dorénavant être :
+{
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "un titre", "h2": "un nom de section"},
+      "heading": {"h2": "un nom de section"},
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+    }
+
+De plus, rajoute une clé "full_headings" qui est la concaténation, dans une même chaîne de caractères, de tous les headings, dans l'ordre croissant, c'est à dire en commençant à h1.
+Dans cette concaténation, les titres sont séparés par une virgule suivie d'un espace. Les niveaux de titre (h1, h2, etc.) ne sont pas repris dans cette concaténation.
+Avec l'exemple précédent, cela doit donner :
+{
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "un titre", "h2": "un nom de section"},
+      "heading": {"h2": "un nom de section"},
+      "full_headings": "un titre; un nom de section",
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+    }

@@ -20,7 +20,6 @@ try:
 except Exception as e:  # pragma: no cover
     AutoTokenizer = None  # type: ignore
 
-
 def _load_tokenizer(model_name: str):
     if AutoTokenizer is None:
         raise RuntimeError(
