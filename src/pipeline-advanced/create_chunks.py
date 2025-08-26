@@ -8,6 +8,8 @@ Create chunks from a Markdown file for a simple RAG pipeline.
       "chunk_id": "...",
       "text": "...",
       "headings": {"h1": "...", "h2": "...", ...},
+      "heading": {"h2": "..."},
+      "full_headings": "...",
       "keywords": ["...", ...],
       "approx_tokens": 123
     }
@@ -22,6 +24,8 @@ Constraints and behavior:
 - Top-level fields include:
   - Keywords extracted from the chunk text (simple top-N by frequency, minus stopwords).
   - The active heading levels for the chunk.
+  - The deepest heading for the chunk as "heading".
+  - "full_headings": concatenation of all heading titles from h1 to hn, separated by ", ".
 """
 
 from __future__ import annotations
@@ -267,11 +271,21 @@ def build_chunks_from_markdown(
             chunk_idx_local += 1
             meta_headings = current_headings_meta()
             keywords = extract_keywords(out_text, top_n=5)
+            # Compute deepest heading and concatenated full headings
+            deepest_heading: Dict[str, str] = {}
+            if headings:
+                deepest_level = max(headings.keys())
+                deepest_heading = {f"h{deepest_level}": headings[deepest_level]}
+            titles = [headings[lvl] for lvl in sorted(headings.keys())]
+            full_headings = ", ".join([t for t in titles if t])
+
             chunks.append(
                 {
                     "chunk_id": f"{Path(source).name}-h{'.'.join(str(k) for k in sorted(headings.keys())) or '0'}-{len(chunks)+1}",
                     "text": out_text,
                     "headings": meta_headings,
+                    "heading": deepest_heading,
+                    "full_headings": full_headings,
                     "keywords": keywords,
                     "approx_tokens": estimate_tokens(out_text),
                 }
