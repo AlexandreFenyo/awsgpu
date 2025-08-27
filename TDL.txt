@@ -19,9 +19,14 @@ modifier la requête pour qu'elle affiche précisément l'intention de l'utilisa
 
 OCR
 
-modifier les références de texte quand les objets référencés ont changé de forme dans le MarkDown
+modifier les références de texte quand les objets référencés ont changé de forme dans le Markdown
 
 identifier les references et les mettre dans les metadata, le reranking permettra de les utiliser si elles sont utiles
+
+markitdown : https://dev.to/leapcell/deep-dive-into-microsoft-markitdown-4if5
+word : mammoth => html => BeautifulSoup => Markdown
+Excel : pandas => html => BeautifulSoup => Markdown
+PPT : pptx => html => BeautifulSoup => Markdown
 
 ------------------------------------------------------------
 
