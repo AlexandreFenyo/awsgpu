@@ -31,7 +31,8 @@ except Exception:
 
 PROMPT_FR = (
     "Voici une image, fournis-moi un texte en Markdown qui décrit son contenu pour pouvoir "
-    "l'inclure dans un chunk d'un système d'IA générative de type RAG"
+    "l'inclure dans un chunk d'un système d'IA générative de type RAG. Propose donc une version adaptée à un chunk d’ingestion, avec les différentes informations contenues dans cette image, en explicitant par exemple les liens entre les différentes entités présentes dans cette image."
+    "Ta réponse est encadrée des tags <IMAGE DESCRIPTION START> et <IMAGE DESCRIPTION END>, en voici un exemple : <IMAGE DESCRIPTION START>tu mets ici la description de l'image<IMAGE DESCRIPTION END>. N'indique pas qu'il s'agit d'une description pour RAG, mets simplement la description. S'il y a des fautes d'orthographe dans ce qui est extrait de l'image, corrige-les. Ne donne pas d'indication sur les couleurs des entités présentes."
 )
 
 # Correspond aux data URLs pour images base64, ex:
@@ -73,6 +74,7 @@ def data_url_to_png_data_url(data_url: str) -> str:
         mime = m.group("mime").lower()
         b64 = m.group("b64")
         # Déjà en PNG
+        print(mime)
         if mime == "image/png":
             return data_url
         raw = base64.b64decode(b64, validate=False)
@@ -115,7 +117,6 @@ def describe_image_with_openai(client: "OpenAI", data_url: str) -> str:
                     ],
                 },
             ],
-            temperature=0.2,
         )
         content = resp.choices[0].message.content if resp.choices else ""
         if not content or not content.strip():
@@ -150,7 +151,7 @@ def output_path_for(input_path: str) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Décrit les images data URL dans un Markdown via OpenAI et les remplace par du texte."
+        description="Décris les images data URL dans un Markdown via OpenAI et les remplace par du texte."
     )
     parser.add_argument("markdown_file", help="Chemin du fichier Markdown en entrée")
     args = parser.parse_args(argv)
