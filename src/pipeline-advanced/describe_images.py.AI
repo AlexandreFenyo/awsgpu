@@ -1,0 +1,20 @@
+
+Prends en paramètre un fichier, qui est au format Markdown.
+Dans ce fichier, il y a des images, présentes chacune comme ceci : ![](data:image/x-emf;base64,AQAAA...==)
+Tu dois invoquer le modèle gpt-5-nano en web-service chez OpenAI, en utilisant la clé d'accès stockée en variable d'environnement nommée OPENAIAPIKEY, pour lui fournir l'image et lui demander une version textuelle avec le prompt suivant :
+"Voici une image, fournis-moi un texte en Markdown qui décrit son contenu pour pouvoir l'inclure dans un chunk d'un système d'IA générative de type RAG".
+Prends la réponse fournie par le modèle et remplace l'image par ce texte.
+Fais cela en boucle pour toutes les images du fichier d'origine.
+Produis un fichier de sortie nommé comme le fichier d'entrée, en rajoutant le suffixe "-converted.md".
+
+-----------------
+
+Avant de les envoyer à OpenAI, convertit les images en format png.
+
+-----------------
+
+Fais en sorte que cette conversion fonctionne aussi pour le format image/x-emf.
+
+------------------
+
+Rajoute une option de ligne de commande "-l" (comme "local") qui, lorsqu'elle est sélectionnée, invoque non pas OpenAI mais Ollama qui tourne en local, en demandant le modèle gpt-oss:20b

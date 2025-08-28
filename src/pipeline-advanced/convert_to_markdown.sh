@@ -1,16 +1,16 @@
 #!/bin/zsh
 
-NEW_DOC=""
-NO_CONVERT=""
-while getopts "nmh" opt; do
-  case "$opt" in
-      n) NEW_DOC="-n" ;;
-      m) NO_CONVERT="-m" ;;
-      h) echo 'Usage: "$0" [-h] [-n] [-m] DOCUMENT' ; exit 0 ;;
-    *) ;;
-  esac
-done
-shift $((OPTIND-1))
+#NEW_DOC=""
+#NO_CONVERT=""
+#while getopts "nmh" opt; do
+#  case "$opt" in
+#      n) NEW_DOC="-n" ;;
+#      m) NO_CONVERT="-m" ;;
+#      h) echo 'Usage: "$0" [-h] [-n] [-m] DOCUMENT' ; exit 0 ;;
+#    *) ;;
+#  esac
+#done
+#shift $((OPTIND-1))
 
 if ! test -n "$1"
 then
