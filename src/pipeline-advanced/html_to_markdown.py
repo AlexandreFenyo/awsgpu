@@ -12,6 +12,7 @@ from typing import List, Tuple, Union
 
 from bs4 import BeautifulSoup, NavigableString, Tag  # type: ignore[import-not-found]
 
+print("Démarrage de html_to_markdown.py")
 
 InlineNode = Union[NavigableString, Tag]
 
