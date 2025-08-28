@@ -44,37 +44,63 @@ def _get_text_inline(node: InlineNode) -> str:
     return ''.join(_get_text_inline(c) for c in node.children)
 
 
-def _render_list(items: List[Tag], ordered: bool, indent: int = 0) -> str:
+def _render_list(items: List[Tag], ordered: bool, indent: int = 0, start: int = 1) -> str:
     lines: List[str] = []
-    for idx, li in enumerate(items, start=1):
-        prefix = f"{idx}. " if ordered else "- "
-        # Split inline/blocks in li
+    current = start
+    for li in items:
+        # Déterminer le marqueur de l'élément courant
+        if ordered:
+            num = current
+            val_attr = li.get("value")
+            if isinstance(val_attr, str) and val_attr.strip().isdigit():
+                num = int(val_attr.strip())
+                current = num + 1
+            else:
+                current += 1
+            marker = f"{num}. "
+        else:
+            marker = "- "
+
+        # Séparer le contenu inline et les sous-listes
         sublines: List[str] = []
         buf_inline: List[str] = []
+
         for child in li.children:
             if isinstance(child, NavigableString):
                 buf_inline.append(str(child))
                 continue
             if isinstance(child, Tag):
                 if child.name in ("ul", "ol"):
-                    # flush inline buffer
-                    text = _get_text_inline(BeautifulSoup(''.join(buf_inline), "html.parser"))
-                    if text.strip():
-                        sublines.append((" " * indent) + prefix + text.strip())
-                        prefix = "  "  # subsequent lines indentation
-                    # nested list
-                    nested = _render_list(child.find_all("li", recursive=False), ordered=(child.name == "ol"), indent=indent + (2 if ordered else 2))
+                    # Vider le tampon inline une fois avant la sous-liste
+                    text = ''.join(buf_inline).strip()
+                    if text:
+                        sublines.append((" " * indent) + marker + text)
+                        marker = "  "  # indentation pour les lignes suivantes
+                    # Rendu de la sous-liste avec gestion de start/value
+                    nested_items = child.find_all("li", recursive=False)
+                    nested_start = 1
+                    if child.name == "ol":
+                        start_attr = child.get("start")
+                        if isinstance(start_attr, str) and start_attr.strip().isdigit():
+                            nested_start = int(start_attr.strip())
+                    nested = _render_list(
+                        nested_items,
+                        ordered=(child.name == "ol"),
+                        indent=indent + 2,
+                        start=nested_start,
+                    )
                     for ln in nested.splitlines():
                         sublines.append((" " * (indent + 2)) + ln)
                     buf_inline = []
                 else:
                     buf_inline.append(_get_text_inline(child))
-        # flush remainder
-        text = BeautifulSoup(''.join(buf_inline), "html.parser").get_text()
-        if text.strip():
-            sublines.append((" " * indent) + prefix + text.strip())
+
+        # Vider le reste du tampon inline
+        text = ''.join(buf_inline).strip()
+        if text:
+            sublines.append((" " * indent) + marker + text)
         if not sublines:
-            sublines.append((" " * indent) + prefix + "")
+            sublines.append((" " * indent) + marker + "")
         lines.extend(sublines)
     return "\n".join(lines)
 
@@ -122,12 +148,19 @@ def _table_to_markdown(table: Tag) -> str:
     return "\n".join(out)
 
 
-def _block_to_markdown(node: Tag) -> str:
+def _block_to_markdown(node: Tag, heading_counters: List[int]) -> str:
     name = node.name.lower()
     if name in ("h1", "h2", "h3", "h4", "h5", "h6"):
         level = int(name[1])
         text = ''.join(_get_text_inline(c) for c in node.children).strip()
-        return f"{'#' * level} {text}\n"
+        # Numérotation automatique des titres (style Word)
+        idx = level - 1
+        heading_counters[idx] += 1
+        for j in range(idx + 1, 6):
+            heading_counters[j] = 0
+        numbering = ".".join(str(n) for n in heading_counters[:level] if n > 0)
+        prefix = f"{numbering} " if numbering else ""
+        return f"{'#' * level} {prefix}{text}\n"
     if name == "p":
         text = ''.join(_get_text_inline(c) for c in node.children).strip()
         return (text + "\n") if text else ""
@@ -144,7 +177,11 @@ def _block_to_markdown(node: Tag) -> str:
         return _render_list(items, ordered=False) + "\n"
     if name == "ol":
         items = node.find_all("li", recursive=False)
-        return _render_list(items, ordered=True) + "\n"
+        start = 1
+        start_attr = node.get("start")
+        if isinstance(start_attr, str) and start_attr.strip().isdigit():
+            start = int(start_attr.strip())
+        return _render_list(items, ordered=True, start=start) + "\n"
     if name == "hr":
         return "---\n"
     if name == "table":
@@ -158,6 +195,7 @@ def html_to_markdown(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     body = soup.body or soup
     parts: List[str] = []
+    heading_counters: List[int] = [0, 0, 0, 0, 0, 0]
     for child in body.children:
         if isinstance(child, NavigableString):
             text = str(child).strip()
@@ -165,7 +203,7 @@ def html_to_markdown(html: str) -> str:
                 parts.append(text + "\n")
             continue
         if isinstance(child, Tag):
-            parts.append(_block_to_markdown(child))
+            parts.append(_block_to_markdown(child, heading_counters))
     # Insérer des lignes blanches entre blocs
     md = ""
     for chunk in parts:
