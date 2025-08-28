@@ -18,6 +18,8 @@ import sys
 import shutil
 import subprocess
 import tempfile
+import json
+from urllib import request as _urlrequest, error as _urlerror
 from typing import Dict
 
 try:
@@ -195,7 +197,43 @@ def describe_image_with_openai(client: "OpenAI", data_url: str) -> str:
         return f"<!-- Erreur lors de la description de l'image: {e} -->"
 
 
-def convert_markdown_images(md_text: str, client: "OpenAI") -> str:
+def describe_image_with_ollama(data_url: str) -> str:
+    """
+    Utilise Ollama en local (modèle gpt-oss:20b) pour décrire une image.
+    Attend que l'API Ollama soit disponible sur http://localhost:11434.
+    """
+    try:
+        png_data_url = data_url_to_png_data_url(data_url)
+        m = re.match(r"^data:image\/png;base64,(?P<b64>.+)$", png_data_url, re.DOTALL)
+        if not m:
+            return "<!-- Impossible d'extraire l'image PNG pour Ollama -->"
+        b64 = m.group("b64")
+        payload = {
+            "model": "gpt-oss:20b",
+            "prompt": PROMPT_FR,
+            "images": [b64],
+            "stream": False,
+        }
+        req = _urlrequest.Request(
+            "http://localhost:11434/api/generate",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _urlrequest.urlopen(req, timeout=120) as resp:
+            body = resp.read()
+        data = json.loads(body.decode("utf-8"))
+        content = data.get("response", "")
+        if not content or not content.strip():
+            return "<!-- Réponse vide du modèle (Ollama) pour cette image -->"
+        return content.strip()
+    except _urlerror.URLError as e:
+        return f"<!-- Erreur de connexion à Ollama: {e} -->"
+    except Exception as e:
+        return f"<!-- Erreur lors de la description via Ollama: {e} -->"
+
+
+def convert_markdown_images(md_text: str, client: "OpenAI", use_local: bool = False) -> str:
     """
     Remplace toutes les images data URL par la description retournée par le modèle.
     """
@@ -206,7 +244,7 @@ def convert_markdown_images(md_text: str, client: "OpenAI") -> str:
         data_url = match.group("url")
         if data_url in cache:
             return cache[data_url]
-        description = describe_image_with_openai(client, data_url)
+        description = describe_image_with_ollama(data_url) if use_local else describe_image_with_openai(client, data_url)
         cache[data_url] = description
         return description
 
@@ -223,6 +261,7 @@ def main(argv=None) -> int:
         description="Décris les images data URL dans un Markdown via OpenAI et les remplace par du texte."
     )
     parser.add_argument("markdown_file", help="Chemin du fichier Markdown en entrée")
+    parser.add_argument("-l", "--local", action="store_true", help="Utiliser Ollama local (modèle gpt-oss:20b) au lieu d'OpenAI")
     args = parser.parse_args(argv)
 
     in_path = args.markdown_file
@@ -233,9 +272,11 @@ def main(argv=None) -> int:
     with open(in_path, "r", encoding="utf-8") as f:
         md_text = f.read()
 
-    client = _build_openai_client()
+    client = None
+    if not args.local:
+        client = _build_openai_client()
 
-    converted = convert_markdown_images(md_text, client)
+    converted = convert_markdown_images(md_text, client, use_local=args.local)
 
     out_path = output_path_for(in_path)
     with open(out_path, "w", encoding="utf-8") as f:
