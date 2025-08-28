@@ -10,6 +10,8 @@ Script CLI:
 """
 
 import argparse
+import base64
+import io
 import os
 import re
 import sys
@@ -20,6 +22,12 @@ try:
     from openai import OpenAI
 except Exception:
     OpenAI = None  # gère l'absence de dépendance plus bas
+
+# Pillow est optionnel mais recommandé pour la conversion vers PNG.
+try:
+    from PIL import Image
+except Exception:
+    Image = None
 
 PROMPT_FR = (
     "Voici une image, fournis-moi un texte en Markdown qui décrit son contenu pour pouvoir "
@@ -51,11 +59,46 @@ def _build_openai_client() -> "OpenAI":
     return OpenAI(api_key=api_key)
 
 
+def data_url_to_png_data_url(data_url: str) -> str:
+    """
+    Convertit une data URL d'image vers une data URL PNG si possible.
+    Si la conversion échoue ou que Pillow n'est pas disponible, retourne la data URL d'origine.
+    """
+    try:
+        if not data_url.startswith("data:"):
+            return data_url
+        m = re.match(r"^data:(?P<mime>[^;]+);base64,(?P<b64>.+)$", data_url, re.DOTALL)
+        if not m:
+            return data_url
+        mime = m.group("mime").lower()
+        b64 = m.group("b64")
+        # Déjà en PNG
+        if mime == "image/png":
+            return data_url
+        raw = base64.b64decode(b64, validate=False)
+        if Image is None:
+            return data_url
+        with Image.open(io.BytesIO(raw)) as im:
+            # Gérer la transparence et les palettes
+            if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
+                im = im.convert("RGBA")
+            else:
+                im = im.convert("RGB")
+            out = io.BytesIO()
+            im.save(out, format="PNG", optimize=True)
+            png_b64 = base64.b64encode(out.getvalue()).decode("ascii")
+            return f"data:image/png;base64,{png_b64}"
+    except Exception:
+        # En cas d'échec, on garde l'image d'origine
+        return data_url
+    return data_url
+
 def describe_image_with_openai(client: "OpenAI", data_url: str) -> str:
     """
     Envoie l'image (data URL) au modèle et retourne une description en Markdown.
     En cas d'échec, retourne un commentaire HTML contenant l'erreur.
     """
+    png_data_url = data_url_to_png_data_url(data_url)
     try:
         resp = client.chat.completions.create(
             model="gpt-5-nano",
@@ -68,7 +111,7 @@ def describe_image_with_openai(client: "OpenAI", data_url: str) -> str:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": PROMPT_FR},
-                        {"type": "image_url", "image_url": {"url": data_url}},
+                        {"type": "image_url", "image_url": {"url": png_data_url}},
                     ],
                 },
             ],
