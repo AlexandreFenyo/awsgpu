@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Dict
 
 from bs4 import BeautifulSoup, NavigableString, Tag  # type: ignore[import-not-found]
 
@@ -148,6 +148,82 @@ def _table_to_markdown(table: Tag) -> str:
     return "\n".join(out)
 
 
+def _normalize_ws(s: str) -> str:
+    return " ".join(s.split())
+
+
+def _collect_footnotes(root: Tag) -> Dict[str, str]:
+    """
+    Collecte les notes depuis les cibles réellement référencées (<a href="#...">).
+    Retourne un mapping id -> texte normalisé.
+    """
+    targets: set[str] = set()
+    for a in root.find_all("a", href=True):
+        href = a.get("href", "")
+        if isinstance(href, str) and href.startswith("#") and len(href) > 1:
+            targets.add(href[1:])
+
+    notes: Dict[str, str] = {}
+    for tid in targets:
+        el = root.find(id=tid)
+        if not el or not isinstance(el, Tag):
+            continue
+        # Supprimer les liens de retour de type <a href="#footnote-ref-..."> dans le contenu de note
+        for back in list(el.find_all("a", href=True)):
+            href = back.get("href", "")
+            if isinstance(href, str) and href.startswith("#footnote-ref"):
+                back.decompose()
+        text = _normalize_ws(el.get_text(" ", strip=True))
+        if text:
+            notes[tid] = text
+    return notes
+
+
+def _inline_footnotes(root: Tag) -> None:
+    """
+    Remplace chaque référence à une note (<a href="#id">, éventuellement dans <sup>)
+    par le texte de la note in situ sous la forme " [Note: ...]".
+    Supprime ensuite les éléments de notes collectés et nettoie les conteneurs vides.
+    """
+    notes = _collect_footnotes(root)
+    if not notes:
+        return
+
+    # Remplacement in-situ des références
+    for a in list(root.find_all("a", href=True)):
+        href = a.get("href", "")
+        if not isinstance(href, str) or not href.startswith("#"):
+            continue
+        target_id = href[1:]
+        note_text = notes.get(target_id)
+        if not note_text:
+            continue
+        replacement = NavigableString(f" [Note: {note_text}]")
+        sup_parent = a.find_parent("sup")
+        if sup_parent:
+            sup_parent.replace_with(replacement)
+        else:
+            a.replace_with(replacement)
+
+    # Suppression des éléments de notes (ex: <li id="footnote-...">) et nettoyage des conteneurs
+    for tid in list(notes.keys()):
+        el = root.find(id=tid)
+        if not el or not isinstance(el, Tag):
+            continue
+        container = el.parent if isinstance(el.parent, Tag) else None
+        el.decompose()
+        # Remonter et supprimer les conteneurs vides typiques (ol/ul/section/div)
+        while container and isinstance(container, Tag):
+            if container.name in ("ol", "ul", "section", "div"):
+                # S'il n'y a plus d'enfant élément, supprimer
+                if not container.find(True, recursive=False):
+                    parent = container.parent if isinstance(container.parent, Tag) else None
+                    container.decompose()
+                    container = parent
+                    continue
+            break
+
+
 def _block_to_markdown(node: Tag, heading_counters: List[int]) -> str:
     name = node.name.lower()
     if name in ("h1", "h2", "h3", "h4", "h5", "h6"):
@@ -194,6 +270,7 @@ def _block_to_markdown(node: Tag, heading_counters: List[int]) -> str:
 def html_to_markdown(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     body = soup.body or soup
+    _inline_footnotes(body)
     parts: List[str] = []
     heading_counters: List[int] = [0, 0, 0, 0, 0, 0]
     for child in body.children:
