@@ -1,4 +1,139 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Script CLI:
+- Prend un chemin de fichier Markdown en paramètre.
+- Remplace chaque image inline encodée en data URL (ex: ![](data:image/x-emf;base64,AAA...))
+  par une description textuelle en Markdown générée par le modèle OpenAI gpt-5-nano.
+- Utilise la clé d'API stockée dans la variable d'environnement OPENAIAPIKEY.
+- Écrit la sortie dans un fichier suffixé par "-converted.md" à côté du fichier d'entrée.
+"""
 
-#
+import argparse
+import os
+import re
+import sys
+from typing import Dict
+
+try:
+    # SDK OpenAI officiel (v1.x)
+    from openai import OpenAI
+except Exception:
+    OpenAI = None  # gère l'absence de dépendance plus bas
+
+PROMPT_FR = (
+    "Voici une image, fournis-moi un texte en Markdown qui décrit son contenu pour pouvoir "
+    "l'inclure dans un chunk d'un système d'IA générative de type RAG"
+)
+
+# Correspond aux data URLs pour images base64, ex:
+# ![](data:image/x-emf;base64,AQAAA...==)
+DATA_IMAGE_MD_PATTERN = re.compile(
+    r"!\[(?P<alt>[^\]]*)\]\((?P<url>data:image\/[a-zA-Z0-9.+-]+;base64,[^)]+)\)"
+)
+
+
+def _build_openai_client() -> "OpenAI":
+    api_key = os.getenv("OPENAIAPIKEY")
+    if not api_key:
+        print(
+            "Erreur: la variable d'environnement OPENAIAPIKEY est absente.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if OpenAI is None:
+        print(
+            "Erreur: le package 'openai' n'est pas installé. "
+            "Installez-le avec: pip install openai",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return OpenAI(api_key=api_key)
+
+
+def describe_image_with_openai(client: "OpenAI", data_url: str) -> str:
+    """
+    Envoie l'image (data URL) au modèle et retourne une description en Markdown.
+    En cas d'échec, retourne un commentaire HTML contenant l'erreur.
+    """
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-5-nano",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Tu es un assistant qui décrit précisément des images en Markdown.",
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": PROMPT_FR},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                },
+            ],
+            temperature=0.2,
+        )
+        content = resp.choices[0].message.content if resp.choices else ""
+        if not content or not content.strip():
+            return "<!-- Réponse vide du modèle pour cette image -->"
+        return content.strip()
+    except Exception as e:
+        return f"<!-- Erreur lors de la description de l'image: {e} -->"
+
+
+def convert_markdown_images(md_text: str, client: "OpenAI") -> str:
+    """
+    Remplace toutes les images data URL par la description retournée par le modèle.
+    """
+
+    cache: Dict[str, str] = {}
+
+    def _repl(match: re.Match) -> str:
+        data_url = match.group("url")
+        if data_url in cache:
+            return cache[data_url]
+        description = describe_image_with_openai(client, data_url)
+        cache[data_url] = description
+        return description
+
+    return DATA_IMAGE_MD_PATTERN.sub(_repl, md_text)
+
+
+def output_path_for(input_path: str) -> str:
+    base, ext = os.path.splitext(input_path)
+    return f"{base}-converted.md"
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Décrit les images data URL dans un Markdown via OpenAI et les remplace par du texte."
+    )
+    parser.add_argument("markdown_file", help="Chemin du fichier Markdown en entrée")
+    args = parser.parse_args(argv)
+
+    in_path = args.markdown_file
+    if not os.path.isfile(in_path):
+        print(f"Erreur: fichier introuvable: {in_path}", file=sys.stderr)
+        return 2
+
+    with open(in_path, "r", encoding="utf-8") as f:
+        md_text = f.read()
+
+    client = _build_openai_client()
+
+    converted = convert_markdown_images(md_text, client)
+
+    out_path = output_path_for(in_path)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(converted)
+
+    # Message succinct sur stderr pour ne pas polluer la sortie
+    print(f"Conversion terminée. Fichier écrit: {out_path}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
 
 
