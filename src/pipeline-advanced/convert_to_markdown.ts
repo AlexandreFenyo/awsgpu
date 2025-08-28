@@ -18,17 +18,6 @@ async function main(argv: string[]): Promise<number> {
   const htmlOutPath = inputPath + ".html";
   await fs.writeFile(htmlOutPath, html, "utf8");
   console.log(htmlOutPath);
-
-  // Étape 2: HTML -> Markdown (via BeautifulSoup, script Python)
-  const pyScriptPath = path.join(__dirname, "html_to_markdown.py");
-  const result = spawnSync("python3", [pyScriptPath, htmlOutPath], {
-    stdio: "inherit",
-  });
-  if (result.status !== 0) {
-    console.error("Erreur: la conversion HTML -> Markdown via BeautifulSoup a échoué.");
-    return result.status ?? 1;
-  }
-
   return 0;
 }
 
