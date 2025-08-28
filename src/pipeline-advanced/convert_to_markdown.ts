@@ -3,6 +3,8 @@ import path from "path";
 import { spawnSync } from "child_process";
 import mammoth from "mammoth";
 
+// ts-node ./src/pipeline-advanced/convert_to_markdown.ts /mnt/c/Temp/CCTP.docx
+
 async function main(argv: string[]): Promise<number> {
   const args = argv.slice(2);
   if (args.length !== 1) {
