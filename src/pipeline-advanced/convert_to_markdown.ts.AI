@@ -60,9 +60,10 @@ src/pipeline-advanced/convert_to_markdown.ts src/pipeline-advanced/html_to_markd
 
 ----------------------
 
-Ne reprend pas la table des matières dans le html produit.
+Ne reprends pas la table des matières dans le html produit.
 
 ----------------------
 
 /ask Est-ce normal que les listes numérotées, quand elles sont dans une case d'un tableau, sont supprimées ?
 Applique ces modifications.
+
