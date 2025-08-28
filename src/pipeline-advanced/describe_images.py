@@ -15,6 +15,9 @@ import io
 import os
 import re
 import sys
+import shutil
+import subprocess
+import tempfile
 from typing import Dict
 
 try:
@@ -60,6 +63,62 @@ def _build_openai_client() -> "OpenAI":
     return OpenAI(api_key=api_key)
 
 
+def _convert_emf_to_png_bytes(emf_bytes):
+    """
+    Tente de convertir des octets EMF vers PNG en utilisant des outils externes si disponibles.
+    Essaie successivement: Inkscape, ImageMagick (magick/convert).
+    Retourne les octets PNG en cas de succès, sinon None.
+    """
+    try:
+        import shutil as _shutil
+        import subprocess as _subprocess
+        import tempfile as _tempfile
+        import os as _os
+
+        with _tempfile.TemporaryDirectory() as tmpdir:
+            in_path = _os.path.join(tmpdir, "input.emf")
+            out_path = _os.path.join(tmpdir, "output.png")
+            with open(in_path, "wb") as f:
+                f.write(emf_bytes)
+
+            # 1) Inkscape
+            inkscape = _shutil.which("inkscape")
+            if inkscape:
+                try:
+                    _subprocess.run(
+                        [inkscape, "--export-type=png", f"--export-filename={out_path}", in_path],
+                        check=True,
+                        stdout=_subprocess.DEVNULL,
+                        stderr=_subprocess.DEVNULL,
+                    )
+                    if _os.path.isfile(out_path):
+                        with open(out_path, "rb") as f:
+                            return f.read()
+                except Exception:
+                    pass
+
+            # 2) ImageMagick (magick or convert)
+            for cmd in ("magick", "convert"):
+                bin_path = _shutil.which(cmd)
+                if not bin_path:
+                    continue
+                try:
+                    _subprocess.run(
+                        [bin_path, in_path, out_path],
+                        check=True,
+                        stdout=_subprocess.DEVNULL,
+                        stderr=_subprocess.DEVNULL,
+                    )
+                    if _os.path.isfile(out_path):
+                        with open(out_path, "rb") as f:
+                            return f.read()
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return None
+
+
 def data_url_to_png_data_url(data_url: str) -> str:
     """
     Convertit une data URL d'image vers une data URL PNG si possible.
@@ -74,10 +133,20 @@ def data_url_to_png_data_url(data_url: str) -> str:
         mime = m.group("mime").lower()
         b64 = m.group("b64")
         # Déjà en PNG
-        print(mime)
         if mime == "image/png":
             return data_url
         raw = base64.b64decode(b64, validate=False)
+
+        # Cas spécial EMF: tenter une conversion via outils externes
+        if mime in ("image/x-emf", "image/emf"):
+            png_bytes = _convert_emf_to_png_bytes(raw)
+            if png_bytes:
+                png_b64 = base64.b64encode(png_bytes).decode("ascii")
+                return f"data:image/png;base64,{png_b64}"
+            # Échec de conversion EMF -> PNG, on rend l'image d'origine
+            return data_url
+
+        # Autres formats: tenter via Pillow
         if Image is None:
             return data_url
         with Image.open(io.BytesIO(raw)) as im:
