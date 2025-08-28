@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import List, Tuple, Union, Dict
 
+import re
 from bs4 import BeautifulSoup, NavigableString, Tag  # type: ignore[import-not-found]
 
 InlineNode = Union[NavigableString, Tag]
@@ -104,17 +105,53 @@ def _render_list(items: List[Tag], ordered: bool, indent: int = 0, start: int = 
 
 
 def _table_to_markdown(table: Tag) -> str:
-    # Récupérer lignes
+    # Rendre les listes dans les cellules comme texte multi-lignes avec <br>,
+    # et échapper les pipes pour préserver la structure du tableau.
     rows = table.find_all("tr")
     if not rows:
         return ""
 
-    def _cells_text(tr: Tag) -> List[str]:
+    def render_cell(cell: Tag) -> str:
+        parts: List[str] = []
+        for child in cell.children:
+            if isinstance(child, NavigableString):
+                parts.append(str(child))
+            elif isinstance(child, Tag):
+                name = child.name.lower()
+                if name == "ul":
+                    items = child.find_all("li", recursive=False)
+                    txt = _render_list(items, ordered=False).replace("\n", "<br>")
+                    parts.append(txt)
+                elif name == "ol":
+                    items = child.find_all("li", recursive=False)
+                    start = 1
+                    start_attr = child.get("start")
+                    if isinstance(start_attr, str) and start_attr.strip().isdigit():
+                        start = int(start_attr.strip())
+                    txt = _render_list(items, ordered=True, start=start).replace("\n", "<br>")
+                    parts.append(txt)
+                elif name == "p":
+                    t = ''.join(_get_text_inline(c) for c in child.children).strip()
+                    if t:
+                        parts.append(t)
+                        parts.append("<br>")
+                elif name == "br":
+                    parts.append("<br>")
+                else:
+                    parts.append(_get_text_inline(child))
+        s = "".join(parts)
+        # Normaliser les espaces sans supprimer les sauts <br> et échapper les pipes.
+        s = re.sub(r"[ \t\f\v]+", " ", s)
+        s = s.replace(" <br>", "<br>").replace("<br> ", "<br>")
+        s = s.strip().replace("|", r"\|")
+        # Retirer un <br> terminal inutile
+        if s.endswith("<br>"):
+            s = s[:-4]
+        return s
+
+    def cells_text(tr: Tag) -> List[str]:
         cells = tr.find_all(["th", "td"])
-        texts: List[str] = []
-        for c in cells:
-            texts.append(' '.join(''.join(_get_text_inline(ch) for ch in c.children).split()))
-        return texts
+        return [render_cell(c) for c in cells]
 
     header_cells = None
     # Chercher en priorité <thead>, sinon la première ligne avec <th>, sinon la 1ère ligne
@@ -122,16 +159,16 @@ def _table_to_markdown(table: Tag) -> str:
     if thead:
         head_trs = thead.find_all("tr")
         if head_trs:
-            header_cells = _cells_text(head_trs[0])
+            header_cells = cells_text(head_trs[0])
     if header_cells is None:
         for r in rows:
             if r.find("th"):
-                header_cells = _cells_text(r)
+                header_cells = cells_text(r)
                 break
     body_rows = rows
     if header_cells is None and rows:
         # Utiliser la première ligne comme en-tête par défaut
-        header_cells = _cells_text(rows[0])
+        header_cells = cells_text(rows[0])
         body_rows = rows[1:]
 
     # Construire Markdown
@@ -140,7 +177,7 @@ def _table_to_markdown(table: Tag) -> str:
         out.append("| " + " | ".join(header_cells) + " |")
         out.append("| " + " | ".join(["---"] * len(header_cells)) + " |")
     for r in body_rows:
-        cells = _cells_text(r)
+        cells = cells_text(r)
         if cells:
             out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out)
