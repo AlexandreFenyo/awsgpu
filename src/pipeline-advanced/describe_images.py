@@ -266,7 +266,7 @@ def describe_image_with_ollama(data_url: str) -> str:
         return f"<!-- Erreur lors de la description via Ollama: {e} -->"
 
 
-def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use_local: bool = False) -> str:
+def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use_local: bool = False, text_only: bool = False) -> str:
     """
     Remplace toutes les images data URL par la description retournée par le modèle.
     """
@@ -274,6 +274,8 @@ def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use
     cache: Dict[str, str] = {}
 
     def _repl(match: re.Match) -> str:
+        if text_only:
+            return "<IMAGE DESCRIPTION START>pas de description<IMAGE DESCRIPTION END>"
         data_url = match.group("url")
         if data_url in cache:
             return cache[data_url]
@@ -319,6 +321,7 @@ def main(argv=None) -> int:
     )
     parser.add_argument("markdown_file", help="Chemin du fichier Markdown en entrée")
     parser.add_argument("-l", "--local", action="store_true", help="Utiliser Ollama local (modèle gpt-oss:20b) au lieu d'OpenAI")
+    parser.add_argument("-t", "--text", action="store_true", help="Ne pas invoquer de LLM; insérer 'pas de description' pour chaque image")
     args = parser.parse_args(argv)
 
     in_path = args.markdown_file
@@ -330,10 +333,10 @@ def main(argv=None) -> int:
         md_text = f.read()
 
     client = None
-    if not args.local:
+    if not args.local and not args.text:
         client = _build_openai_client()
 
-    converted = convert_markdown_images(md_text, client, in_path, use_local=args.local)
+    converted = convert_markdown_images(md_text, client, in_path, use_local=args.local, text_only=args.text)
 
     out_path = output_path_for(in_path)
     with open(out_path, "w", encoding="utf-8") as f:
