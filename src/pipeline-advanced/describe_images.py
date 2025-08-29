@@ -290,6 +290,7 @@ def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use
                 pass
 
         # Pas de cache: on interroge le LLM
+        print("llm launched")
         description = describe_image_with_ollama(data_url) if use_local else describe_image_with_openai(client, data_url)
         description = "<IMAGE DESCRIPTION START>" + description + "<IMAGE DESCRIPTION END>"
 
@@ -303,8 +304,6 @@ def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use
 
         cache[data_url] = description
         return description
-
-    print("llm launched")
 
     return DATA_IMAGE_MD_PATTERN.sub(_repl, md_text)
 
