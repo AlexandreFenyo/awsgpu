@@ -292,6 +292,60 @@ def _collect_previous_paragraph(lines: List[str], list_start_idx: int) -> Tuple[
     return para_lines, gap_blank_count
 
 
+def _collect_previous_paragraph_from_buffer_blocks(buffer_blocks: List[str]) -> Tuple[Optional[List[str]], int]:
+    """
+    Inspect buffer_blocks to collect up to two previous plain-text paragraphs (single-line blocks).
+    This avoids mismatches with previously transformed blocks (e.g., Markdown tables converted to "TABLE: ...").
+    Returns (para_lines, gap_blank_count) where para_lines is a list of lines or None.
+    """
+    j = len(buffer_blocks) - 1
+    gap_blank_count = 0
+    # Skip trailing blanks between the last paragraph and the current block
+    while j >= 0 and buffer_blocks[j].strip() == "":
+        gap_blank_count += 1
+        j -= 1
+
+    if j < 0:
+        return None, 0
+
+    def is_plain_line(s: str) -> bool:
+        # A "plain line" is a single-line paragraph line (not list, not table, not image block)
+        if not s or "\n" in s:
+            return False
+        st = s.strip()
+        if not st:
+            return False
+        if _is_list_item_start(st):
+            return False
+        low = st.lower()
+        if low.startswith("table:") or low.startswith("<table") or "<image description start>" in low:
+            return False
+        return True
+
+    # Collect paragraph 1 (closest to the end)
+    p1: List[str] = []
+    while j >= 0 and is_plain_line(buffer_blocks[j]):
+        p1.append(buffer_blocks[j])
+        j -= 1
+    p1.reverse()
+    if not p1:
+        return None, 0
+
+    # Skip blanks between paragraphs
+    while j >= 0 and buffer_blocks[j].strip() == "":
+        j -= 1
+
+    # Collect paragraph 2 if present
+    p2: List[str] = []
+    while j >= 0 and is_plain_line(buffer_blocks[j]):
+        p2.append(buffer_blocks[j])
+        j -= 1
+    p2.reverse()
+
+    para_lines = (p2 + p1) if p2 else p1
+    return para_lines, gap_blank_count
+
+
 def extract_keywords(text: str, top_n: int = 5) -> List[str]:
     """
     Simple keyword extraction:
@@ -442,24 +496,31 @@ def build_chunks_from_markdown(
             atomic_img = f"{pre_text or ''}{img_text}{post_text or ''}"
 
             # Include at least the two immediately preceding paragraphs within the same heading.
-            para_lines, gap_blanks = _collect_previous_paragraph(lines, i)
-            if para_lines:
-                popped_blanks = 0
-                while buffer_blocks and buffer_blocks[-1].strip() == "":
-                    buffer_blocks.pop()
-                    popped_blanks += 1
+            # Prefer collecting from the buffer to avoid mismatches with transformed blocks (e.g., tables).
+            popped_blanks = 0
+            while buffer_blocks and buffer_blocks[-1].strip() == "":
+                buffer_blocks.pop()
+                popped_blanks += 1
 
-                idx_end = len(buffer_blocks)
-                if idx_end >= len(para_lines) and buffer_blocks[idx_end - len(para_lines) : idx_end] == para_lines:
-                    del buffer_blocks[idx_end - len(para_lines) : idx_end]
-                    separator = "\n\n" if gap_blanks > 0 else "\n"
-                    combined = ("\n".join(para_lines) + separator + atomic_img) if para_lines else atomic_img
-                    buffer_blocks.append(combined)
-                    i = next_i
-                    continue
+            para_lines, gap_blanks = _collect_previous_paragraph_from_buffer_blocks(buffer_blocks)
+            if para_lines:
+                # Remove those paragraph lines from the buffer tail (they are single-line blocks)
+                if len(buffer_blocks) >= len(para_lines) and buffer_blocks[-len(para_lines):] == para_lines:
+                    del buffer_blocks[-len(para_lines):]
                 else:
-                    # Restore popped blanks; fall back to plain handling.
-                    buffer_blocks.extend([""] * popped_blanks)
+                    # Fallback removal if there is a slight mismatch; match from the end line-by-line.
+                    k = len(para_lines) - 1
+                    while buffer_blocks and k >= 0 and buffer_blocks[-1] == para_lines[k]:
+                        buffer_blocks.pop()
+                        k -= 1
+                separator = "\n\n" if gap_blanks > 0 else "\n"
+                combined = "\n".join(para_lines) + separator + atomic_img
+                buffer_blocks.append(combined)
+                i = next_i
+                continue
+            else:
+                # Restore popped blanks; fall back to plain handling.
+                buffer_blocks.extend([""] * popped_blanks)
 
             # No paragraph merge; keep the atomic image block as-is.
             buffer_blocks.append(atomic_img)
