@@ -22,6 +22,7 @@ Constraints and behavior:
 - Additionally, if a list block immediately follows paragraphs within the same heading level, the two preceding paragraphs (if present) are merged with the list into the same chunk.
 - Markdown tables are converted to simple text preserving their content.
 - HTML tables (<table>...</table>) are treated as atomic blocks that are never split; they also include up to the two immediately preceding paragraphs within the same heading (never across headings).
+- IMAGE DESCRIPTION blocks delimited by <IMAGE DESCRIPTION START> ... <IMAGE DESCRIPTION END> are atomic and include at least the two immediately preceding paragraphs within the same heading (never across headings). Tags may appear mid-line, and start and end may be on the same line.
 - Top-level fields include:
   - Keywords extracted from the chunk text (simple top-N by frequency, minus stopwords).
   - The active heading levels for the chunk.
@@ -155,6 +156,53 @@ def parse_html_table_block(lines: List[str], start_idx: int) -> Tuple[str, int]:
             break
 
     return "\n".join(collected), i
+
+
+def parse_image_description_block(lines: List[str], start_idx: int) -> Tuple[str, int, str, str]:
+    """
+    Parse a block delimited by <IMAGE DESCRIPTION START> ... <IMAGE DESCRIPTION END>.
+    The tags may be mid-line and start/end may be on the same line.
+    Returns (block_text, next_index, before_text, after_text), where:
+      - block_text is the content from the start tag through the end tag (inclusive), never split.
+      - next_index is the index of the line after the block ends.
+      - before_text is any text on the start line that appears before the start tag.
+      - after_text is any text on the end line that appears after the end tag.
+    """
+    i = start_idx
+    if i >= len(lines):
+        return "", i, "", ""
+
+    start_tag = "<IMAGE DESCRIPTION START>"
+    end_tag = "<IMAGE DESCRIPTION END>"
+
+    line = lines[i]
+    start_pos = line.find(start_tag)
+    if start_pos == -1:
+        return "", i, "", ""
+
+    before_text = line[:start_pos]
+    collected: List[str] = []
+    after_text = ""
+    first_line = True
+
+    while i < len(lines):
+        cur = lines[i]
+        segment = cur[start_pos:] if first_line else cur
+
+        end_pos = segment.find(end_tag)
+        if end_pos != -1:
+            end_idx = end_pos + len(end_tag)
+            collected.append(segment[:end_idx])
+            after_text = segment[end_idx:]
+            i += 1
+            break
+        else:
+            collected.append(segment)
+            i += 1
+            first_line = False
+            start_pos = 0
+
+    return "\n".join(collected), i, before_text, after_text
 
 
 def _is_list_item_start(line: str) -> bool:
@@ -383,6 +431,43 @@ def build_chunks_from_markdown(
                     buffer_blocks.extend([""] * popped_blanks)
 
             buffer_blocks.append(html_table_text)
+            i = next_i
+            continue
+
+        # IMAGE DESCRIPTION block?
+        if "<IMAGE DESCRIPTION START>" in line:
+            img_text, next_i, pre_text, post_text = parse_image_description_block(lines, i)
+
+            # Include at least the two immediately preceding paragraphs within the same heading.
+            para_lines, gap_blanks = _collect_previous_paragraph(lines, i)
+            if para_lines:
+                popped_blanks = 0
+                while buffer_blocks and buffer_blocks[-1].strip() == "":
+                    buffer_blocks.pop()
+                    popped_blanks += 1
+
+                idx_end = len(buffer_blocks)
+                if idx_end >= len(para_lines) and buffer_blocks[idx_end - len(para_lines) : idx_end] == para_lines:
+                    del buffer_blocks[idx_end - len(para_lines) : idx_end]
+                    separator = "\n\n" if gap_blanks > 0 else "\n"
+                    # Maintain original order: paragraphs -> (gap) -> pre_text + image block
+                    line_start = f"{pre_text}{img_text}" if pre_text else img_text
+                    combined = ("\n".join(para_lines) + separator + line_start) if para_lines else line_start
+                    buffer_blocks.append(combined)
+                    if post_text:
+                        buffer_blocks.append(post_text)
+                    i = next_i
+                    continue
+                else:
+                    # Restore popped blanks; fall back to plain handling.
+                    buffer_blocks.extend([""] * popped_blanks)
+
+            # No paragraph merge; keep inline 'pre' as its own block (if any), then the image block.
+            if pre_text:
+                buffer_blocks.append(pre_text)
+            buffer_blocks.append(img_text)
+            if post_text:
+                buffer_blocks.append(post_text)
             i = next_i
             continue
 
