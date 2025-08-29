@@ -3,9 +3,11 @@
 # Options:
 # -n: dry-run (do not call curl, print REQUEST JSON instead)
 DRY_RUN=0
-while getopts "n" opt; do
+OPENAI_LLM=0
+while getopts "no" opt; do
   case "$opt" in
     n) DRY_RUN=1 ;;
+    o) OPENAI_LLM=1 ;;
     *) ;;
   esac
 done
@@ -50,7 +52,10 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
+if (( OPENAI_LLM )); then
+  curl https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${OPENAIAPIKEY}" -d "$REQUEST" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
+else
 # Décommenter la ligne correspondant au modèle sur lequel s'appuyer :
 #echo "$PROMPT_CONTENT" | /mnt/c/Users/Alexandre\ Fenyo/AppData/Local/Programs/Ollama/ollama.exe run gpt-oss:20b
 echo "$PROMPT_CONTENT" | /mnt/c/Users/Alexandre\ Fenyo/AppData/Local/Programs/Ollama/ollama.exe run gpt-oss:120b
-#curl https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${OPENAIAPIKEY}" -d "$REQUEST" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
+fi
