@@ -1,0 +1,28 @@
+[project]
+name = "awsgpu"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Alexandre Fenyo",email = "alexandre.fenyo@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "python-docx (>=1.2.0,<2.0.0)",
+    "markitdown[docx] (>=0.1.2,<0.2.0)",
+    "openai (>=1.99.9,<2.0.0)",
+    "sentence-transformers (>=5.1.0,<6.0.0)",
+    "weaviate (>=0.1.2,<0.2.0)",
+    "weaviate-client (>=4.16.7,<5.0.0)",
+    "pillow (>=11.3.0,<12.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "awsgpu", from = "src"}]
+
+[tool.poetry.scripts]
+parse-word = "awsgpu.parse_word:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,123 @@
+
+Je veux développer un pipeline de RAG, pour faire de la genAI.
+
+Je veux un script Python, pour la transformation d'un document en chunks.
+
+Ce script prend en entrée un nom de fichier, qui est au format MarkDown.
+
+Le fichier est parsé pour créer des chunks qui seront envoyés, via un autre script, dans une base Weaviate.
+Les chunks ont une taille d'environ 200 tokens par défaut, valeur modifiable sur la ligne de commande.
+L'estimation de la taille des chunks se fait le plus simplement possible, sans utiliser de bibliothèque spécifique.
+
+Le fichier est parsé comme ceci :
+- Un chunk n'est jamais à cheval entre plusieurs niveaux de titres ;
+- Les tableaux sont transformés en un texte qui correspond au même contenu.
+
+Les metadata de contexte des chunks comprennent :
+  - les mots clés importants du chunk ;
+  - les différents niveaux de titres.
+  
+Je ne veux pas d'autres raffinements.
+
+Le nom de fichier de sortie contenant les chunks est composé du nom de fichier d'entrée auquel on ajoute le suffixe ".chunks.jq"
+Le script affiche le nom du fichier produit.
+
+------------------------------------------------------------
+
+Une liste n'est jamais à cheval dans plusieurs chunks, même si cela oblige à avoir plus du nombre de tokens par défaut ou choisi par l'utilisateur.
+
+------------------------------------------------------------
+
+The script has been created this way: list blocks are kept intact (never split across chunks), even if that exceeds the token budget.
+I now want to add to this behaviour that each list block includes its previous paragraph, in the same chunk, sauf si cela conduirait à ce que ce chunk soit à cheval entre plusieurs niveaux de titre, évidemment.
+
+------------------------------------------------------------
+
+Previously, I asked you to add a new behaviour : each list block includes its previous paragraph, in the same chunk, sauf si cela conduirait à ce que ce chunk soit à cheval entre plusieurs niveaux de titre, évidemment.
+I now want you to update this behaviour : not only include the previous paragraph, but the 2 previous ones.
+
+------------------------------------------------------------
+
+Modifie la sortie de ce script pour que chaque chunk en jsonl contienne en plus la clé "heading" qui est le heading de plus bas niveau (celui avec le plus grand nombre suivant le "h" de son nom).
+Par exemple, si la sortie est actuellement :
+{
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "un titre", "h2": "un nom de section"},
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+    }
+  
+Alors la sortie doit dorénavant être :
+{
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "un titre", "h2": "un nom de section"},
+      "heading": {"h2": "un nom de section"},
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+    }
+
+De plus, rajoute une clé "full_headings" qui est la concaténation, dans une même chaîne de caractères, de tous les headings, dans l'ordre croissant, c'est à dire en commençant à h1.
+Dans cette concaténation, les titres sont séparés par une virgule suivie d'un espace. Les niveaux de titre (h1, h2, etc.) ne sont pas repris dans cette concaténation.
+Avec l'exemple précédent, cela doit donner :
+{
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "un titre", "h2": "un nom de section"},
+      "heading": {"h2": "un nom de section"},
+      "full_headings": "un titre; un nom de section",
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+    }
+
+------------------------------------------------------------
+
+Une table HTML (désignée par les balises HTML correspondantes) n'est jamais à cheval dans plusieurs chunks, même si cela oblige à avoir plus du nombre de tokens par défaut ou choisi par l'utilisateur.
+Moreover, each HTML table includes its two previous paragraphs, in the same chunk, sauf si cela conduirait à ce que ce chunk soit à cheval entre plusieurs niveaux de titre, évidemment.
+
+------------------------------------------------------------
+
+Chaque partie du document encadrée par une balise de départ <IMAGE DESCRIPTION START> et une balise de fin <IMAGE DESCRIPTION END>, n'est jamais à cheval dans plusieurs chunks, même si cela oblige à avoir plus du nombre de tokens par défaut ou choisi par l'utilisateur.
+Note que ces balises peuvent se retrouver au milieu d'une ligne, et que la balise de départ peut être sur la même ligne que la balise de fin, si le texte entre les deux balises est court.
+D'autre part, ces parties intègrent, dans le same chunk, au minimum leurs deux précédents paragraphes, sauf si cela conduirait à ce que ce chunk soit à cheval entre plusieurs niveaux de titre, évidemment.
+
+> /ask Ca ne marche pas : tu as mis les deux chunks suivants : {"chunk_id": "CCTP.docx.html.md.converted-5", "text": "Le vocabulaire Sécurité utilisé dans l’accord-cadre s’appuie sur le glossaire d
+> e la spécification EBIOS de l’ANSSI, dont sont rappelés ci-dessous les termes principaux et leurs relations :", "headings": {"h1": "1 Glossaire"}, "heading": {"h1": "1 Glossaire"}, "full_headings
+> ": "1 Glossaire", "keywords": ["vocabulaire", "sécurité", "utilisé", "accord-cadre", "appuie"], "approx_tokens": 27}
+> {"chunk_id": "CCTP.docx.html.md.converted-6", "text": "<IMAGE DESCRIPTION START>Voici une description structurée et prête à être ingérée, qui restitue le contenu et les relatio... Alors que le te
+> xte contenait un paragraphe "Le vocabulaire Sécurité utilisé dans l’accord-cadre s’appuie sur le glossaire de la spécification EBIOS de l’ANSSI, dont sont rappelés ci-dessous les termes principau
+> x et leurs relations :" suivi de l'image.
+
+> Voici les lignes correspondantes du fichier markdown d'entrée : | Vulnérabilité | La définition du terme vulnérabilité correspond à celle de la méthodologie EBIOS, rappelée ci-après. Conformément
+>  à cette méthodologie et à sa définition du terme, une vulnérabilité peut exister en dehors de tout scénario de menace. En effet, la présence d’une vulnérabilité ne peut pas toujours conduire à l
+> a possibilité de réaliser avec succès une attaque : il arrive qu’il faille exploiter conjointement ou successivement plusieurs vulnérabilités pour réaliser avec succès une attaque, c’est-à-dire u
+> ne atteinte aux objectifs de sécurité via un scénario de menace. Une vulnérabilité peut donc être présente sans qu’elle puisse conduire, elle-seule, au succès d’une attaque. |
+> | Vulnérabilité avérée | Une vulnérabilité avérée est une vulnérabilité qui a été exploitée au moins une fois par une source de menace. |
+>
+> Le vocabulaire Sécurité utilisé dans l’accord-cadre s’appuie sur le glossaire de la spécification EBIOS de l’ANSSI, dont sont rappelés ci-dessous les termes principaux et leurs relations :
+>
+> <IMAGE DESCRIPTION START>Voici une description structurée et prête à être ingérée, qui restitue le contenu et les relations présentes dans l’image.
+>
+> Aperçu
+> - Le schéma décrit un cadre de gouvernance et de gestion de la sécurité de l’information autour du triptyque confidentialité – disponibilité – intégrité, avec des dépendances entre les actifs (bi
+> ens), les critères de sécurité, les menaces et les risques, jusqu’aux traitements et à l’homologation.
+> - Noyau central: le Critère de sécurité, qui s’applique aux biens (notamment les biens essentiels) et oriente les besoins de sécurité et les mesures associées.
+> - Flux principaux: identification et évaluation des risques, définition des besoins et niveaux d’exigences, scénarios de menace, evaluation des impacts et de la gravité, puis traitement des risqu
+> es et mesures de sécurité, le tout encadré par des politiques et par des procédures d’homologation.
+
+> Ca continue à ne pas marcher : tu as généré ceci : {"chunk_id": "CCTP.docx.html.md.converted-5", "text": "Le vocabulaire Sécurité utilisé dans l’accord-cadre s’appuie sur le glossaire de la spéci
+> fication EBIOS de l’ANSSI, dont sont rappelés ci-dessous les termes principaux et leurs relations :", "headings": {"h1": "1 Glossaire"}, "heading": {"h1": "1 Glossaire"}, "full_headings": "1 Glos
+> saire", "keywords": ["vocabulaire", "sécurité", "utilisé", "accord-cadre", "appuie"], "approx_tokens": 27}
+> {"chunk_id": "CCTP.docx.html.md.converted-6", "text": "<IMAGE DESCRIPTION START>Voici une description structurée et prête à être ingérée, qui restitue le contenu et les relations présentes dans l
+> ’image.\n\nAperçu\n- Le schéma décrit un cadre de gouvernance et de gestion de la sécurité de l’information autour du triptyque confidentialité – disponibili. Alors qu'en entrée, il y avait ceci
+> : {"chunk_id": "CCTP.docx.html.md.converted-5", "text": "Le vocabulaire Sécurité utilisé dans l’accord-cadre s’appuie sur le glossaire de la spécification EBIOS de l’ANSSI, dont sont rappelés ci-
+> dessous les termes principaux et leurs relations :", "headings": {"h1": "1 Glossaire"}, "heading": {"h1": "1 Glossaire"}, "full_headings": "1 Glossaire", "keywords": ["vocabulaire", "sécurité", "
+> utilisé", "accord-cadre", "appuie"], "approx_tokens": 27}
+> {"chunk_id": "CCTP.docx.html.md.converted-6", "text": "<IMAGE DESCRIPTION START>Voici une description structurée et prête à être ingérée, qui restitue le contenu et les relations présentes dans l
+> ’image.\n\nAperçu\n- Le schéma décrit un cadre de gouvernance et de gestion de la sécurité de l’information autour du triptyque confidentialité – disponibili
+
+OK !
+
+------------------------------------------------------------
+

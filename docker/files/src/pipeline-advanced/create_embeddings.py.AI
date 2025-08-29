@@ -1,0 +1,79 @@
+
+Je veux développer un pipeline de RAG, pour faire de la genAI.
+
+J'ai déjà produit des chunks à partir d'un document et je veux calculer leurs embeddings. Ils seront envoyés, via un autre script, dans une base Weaviate.
+
+Les metadata de contexte des chunks comprennent :
+  - les mots clés importants du chunk.
+  - les différents niveaux de titres.
+Voici un exemple de chunk :
+{"chunk_id": "CCTP.docx-571", "text": "* Définit les besoins fonctionnels des SI de l’Assurance Maladie dans son champ d'activité et s'assure de leur mise en œuvre,", "metadata": {"headings": {"h1": "Présentation de l’Assurance Maladie et du Numérique en Santé", "h2": "La Direction déléguée à la gestion et à l’organisation des soins (DDGOS)"}, "keywords": ["définit", "besoins", "fonctionnels", "assurance", "maladie"]}, "approx_tokens": 21}
+
+Je veux désormais un script qui crée les embeddings, au format NDJSON.
+
+Ce script prend en entrée le nom du fichier des chunks.
+Le nom de fichier de sortie contenant les embeddings est composé du nom de fichier d'entrée auquel on ajoute le suffixe ".embeddings.ndjson".
+Le script affiche le nom du fichier produit.
+
+Le fichier ndjson à produire est constitué d'une ligne par chunk, au format suivant :
+{ chunk_id, embedding: [floats], model: {name, version}, created_at, approx_tokens, keywords, headings }
+
+En voici un exemple :
+{"chunk_id": "CCTP.docx-571", "embedding": [0.012, -0.439, ..., 0.204], "model": {"name": "embed-model-x", "version": "1.2.0"}, "created_at": "2025-08-15T12:30:00Z", "approx_tokens": 21, "keywords": ["définit","besoins","fonctionnels","assurance","maladie"], "headings": {"h1": "Présentation...", "h2": "La Direction ..."}}
+
+Le script s'appuie sur sentence-transformer, avec le modèle paraphrase-xlm-r-multilingual-v1.
+
+# poetry add sentence_transformers
+
+------------------------------------------------------------
+
+Modifie le format du fichier ndjson, pour qu'en plus d'avoir le chunk_id, j'ai aussi le texte associé au chunk.
+
+------------------------------------------------------------
+
+Modifie le format du fichier ndjson pour que chaque chunk intègre, en plus de l'embedding du texte déjà présent, un tableau d'embeddings, dont chaque élément de ce tableau est un embedding d'un niveau de titre.
+
+------------------------------------------------------------
+
+Crée un cache des différents embeddings, pour ne pas les recalculer quand ils l'ont déjà été.
+
+------------------------------------------------------------
+
+Pour chaque embedding d'un niveau de titre, fais en sorte qu'on puisse savoir à quel niveau il correspond.
+
+------------------------------------------------------------
+
+A chaque fois que tu calcules un embedding qui n'est pas en cache, affiche le contenu dont tu calcules l'embedding, en le préfixant par le chaine : "computing embedding for: ".
+
+------------------------------------------------------------
+
+Rajoute une option de ligne de commande pour qu'on puisse demander à ne pas calculer les embeddings des headings.
+
+------------------------------------------------------------
+
+Modifie le format de sortie de create_chunks.py et celui d'entrée de create_embeddings.py comme ceci : au lieu de mettre les metadata dans un champ json spécifique, mets les metadata au même niveau que le reste.
+Voici un exemple :
+au lieu de :
+    {
+      "chunk_id": "...",
+      "text": "...",
+      "metadata": { "headings": {"h1": "...", "h2": "...", ...}, "keywords": ["...", ...] },
+      "approx_tokens": 123
+    }
+il faut que create_chunks.py produise :
+    {
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "...", "h2": "...", ...},
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+    }
+
+Comme create_embeddings.py prend en entrée ce que create_chunks.py produit, mets à jour create_embeddings.py pour qu'il continue à fonctionner correctement.
+
+------------------------------------------------------------
+
+Modifie le format ndjson de sortie pour ne plus traiter la demande suivante : que chaque chunk intègre, en plus de l'embedding du texte déjà présent, un tableau d'embeddings, dont chaque élément de ce tableau est un embedding d'un niveau de titre.
+Il ne faut donc plus les calculer ni les mettre dans le fichier de sortie. En effet, ça ne sert à rien dans le traitement global.
+
+------------------------------------------------------------

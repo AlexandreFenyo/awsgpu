@@ -1,0 +1,8 @@
+
+choix : weaviate :
+Hybride BM25+vector, filtres, “named vectors” (multi-embeddings), where sur propriétés (entities).
+
+index hybride :
+- Lexical (BM25 + fuzzy) sur le texte.
+- Vecteurs sur le texte
+
