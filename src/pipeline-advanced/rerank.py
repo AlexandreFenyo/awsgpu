@@ -18,7 +18,7 @@ Rerank retrieved chunks for a given question using a Cross-Encoder.
       }
 
 - Behavior:
-  - Use cross-encoder/ms-marco-bert-base-v2 from sentence-transformers to score (question, text) pairs.
+  - Use cross-encoder/ms-marco-MiniLM-L-6-v2 from sentence-transformers to score (question, text) pairs.
   - Truncate inputs to 512 model tokens for reranking (model-side truncation).
   - Add a "reranker" float score to each JSON object.
   - Sort all chunks by "reranker" descending (best first).
@@ -85,7 +85,7 @@ def rerank(question: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return []
 
     # Load CrossEncoder; ensure max_length=512 for model-side truncation
-    model = CrossEncoder("cross-encoder/ms-marco-bert-base-v2", max_length=512)
+    model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", max_length=512)
     pairs = build_pairs(question, items)
 
     # Predict scores; model tokenization will truncate to max_length
