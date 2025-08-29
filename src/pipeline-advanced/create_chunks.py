@@ -438,6 +438,9 @@ def build_chunks_from_markdown(
         if "<IMAGE DESCRIPTION START>" in line:
             img_text, next_i, pre_text, post_text = parse_image_description_block(lines, i)
 
+            # Build an atomic block including any inline prefix/suffix on the same line
+            atomic_img = f"{pre_text or ''}{img_text}{post_text or ''}"
+
             # Include at least the two immediately preceding paragraphs within the same heading.
             para_lines, gap_blanks = _collect_previous_paragraph(lines, i)
             if para_lines:
@@ -450,24 +453,16 @@ def build_chunks_from_markdown(
                 if idx_end >= len(para_lines) and buffer_blocks[idx_end - len(para_lines) : idx_end] == para_lines:
                     del buffer_blocks[idx_end - len(para_lines) : idx_end]
                     separator = "\n\n" if gap_blanks > 0 else "\n"
-                    # Maintain original order: paragraphs -> (gap) -> pre_text + image block
-                    line_start = f"{pre_text}{img_text}" if pre_text else img_text
-                    combined = ("\n".join(para_lines) + separator + line_start) if para_lines else line_start
+                    combined = ("\n".join(para_lines) + separator + atomic_img) if para_lines else atomic_img
                     buffer_blocks.append(combined)
-                    if post_text:
-                        buffer_blocks.append(post_text)
                     i = next_i
                     continue
                 else:
                     # Restore popped blanks; fall back to plain handling.
                     buffer_blocks.extend([""] * popped_blanks)
 
-            # No paragraph merge; keep inline 'pre' as its own block (if any), then the image block.
-            if pre_text:
-                buffer_blocks.append(pre_text)
-            buffer_blocks.append(img_text)
-            if post_text:
-                buffer_blocks.append(post_text)
+            # No paragraph merge; keep the atomic image block as-is.
+            buffer_blocks.append(atomic_img)
             i = next_i
             continue
 
