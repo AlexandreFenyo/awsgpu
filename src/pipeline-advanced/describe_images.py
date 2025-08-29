@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import tempfile
 import json
+import hashlib
 from urllib import request as _urlrequest, error as _urlerror
 from typing import Dict
 
@@ -180,6 +181,21 @@ def data_url_to_png_data_url(data_url: str) -> str:
         return data_url
     return data_url
 
+def _extract_b64(data_url: str):
+    m = re.match(r"^data:(?P<mime>[^;]+);base64,(?P<b64>.+)$", data_url, re.DOTALL)
+    if not m:
+        return None
+    return m.group("b64")
+
+def _cache_file_path_for_image(input_path: str, data_url: str):
+    b64 = _extract_b64(data_url)
+    if not b64:
+        return None
+    sha1_hex = hashlib.sha1(b64.encode("ascii")).hexdigest()
+    dir_name = os.path.dirname(input_path) or "."
+    base_name = os.path.basename(input_path)
+    return os.path.join(dir_name, f"{base_name}.cache-{sha1_hex}.txt")
+
 def describe_image_with_openai(client: "OpenAI", data_url: str) -> str:
     """
     Envoie l'image (data URL) au modèle et retourne une description en Markdown.
@@ -250,7 +266,7 @@ def describe_image_with_ollama(data_url: str) -> str:
         return f"<!-- Erreur lors de la description via Ollama: {e} -->"
 
 
-def convert_markdown_images(md_text: str, client: "OpenAI", use_local: bool = False) -> str:
+def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use_local: bool = False) -> str:
     """
     Remplace toutes les images data URL par la description retournée par le modèle.
     """
@@ -261,8 +277,30 @@ def convert_markdown_images(md_text: str, client: "OpenAI", use_local: bool = Fa
         data_url = match.group("url")
         if data_url in cache:
             return cache[data_url]
+
+        # Cache disque basé sur le SHA-1 du base64 d'origine
+        cache_file = _cache_file_path_for_image(input_path, data_url)
+        if cache_file and os.path.isfile(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as cf:
+                    cached_text = cf.read()
+                cache[data_url] = cached_text
+                return cached_text
+            except Exception:
+                pass
+
+        # Pas de cache: on interroge le LLM
         description = describe_image_with_ollama(data_url) if use_local else describe_image_with_openai(client, data_url)
         description = "<IMAGE DESCRIPTION START>" + description + "<IMAGE DESCRIPTION END>"
+
+        # Écrit dans le cache disque
+        if cache_file:
+            try:
+                with open(cache_file, "w", encoding="utf-8") as cf:
+                    cf.write(description)
+            except Exception:
+                pass
+
         cache[data_url] = description
         return description
 
@@ -296,7 +334,7 @@ def main(argv=None) -> int:
     if not args.local:
         client = _build_openai_client()
 
-    converted = convert_markdown_images(md_text, client, use_local=args.local)
+    converted = convert_markdown_images(md_text, client, in_path, use_local=args.local)
 
     out_path = output_path_for(in_path)
     with open(out_path, "w", encoding="utf-8") as f:
