@@ -223,9 +223,11 @@ def describe_image_with_ollama(data_url: str) -> str:
             return "<!-- Impossible d'extraire l'image PNG pour Ollama -->"
         b64 = m.group("b64")
         payload = {
-            "model": "Qwen2.5vl:72b",
+            "model": "Qwen2.5vl:32b",
             # "model": "Qwen2.5vl:3b",
-            "prompt": PROMPT_OLLAMA_FR,
+            # "model": "Qwen2.5vl:72b",
+            # "prompt": PROMPT_OLLAMA_FR,
+            "prompt": PROMPT_FR,
             "images": [b64],
             "stream": False,
         }
@@ -235,7 +237,7 @@ def describe_image_with_ollama(data_url: str) -> str:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with _urlrequest.urlopen(req, timeout=600) as resp:
+        with _urlrequest.urlopen(req, timeout=1200) as resp:
             body = resp.read()
         data = json.loads(body.decode("utf-8"))
         content = data.get("response", "")
@@ -264,12 +266,14 @@ def convert_markdown_images(md_text: str, client: "OpenAI", use_local: bool = Fa
         cache[data_url] = description
         return description
 
+    print("llm launched")
+
     return DATA_IMAGE_MD_PATTERN.sub(_repl, md_text)
 
 
 def output_path_for(input_path: str) -> str:
     base, ext = os.path.splitext(input_path)
-    return f"{base}-converted.md"
+    return f"{base}.md.converted.md"
 
 
 def main(argv=None) -> int:
