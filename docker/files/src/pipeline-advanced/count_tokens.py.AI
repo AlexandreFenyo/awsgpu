@@ -1,2 +1,0 @@
-
-Ce script Python décompte les tokens du texte qui lui est envoyé sur l'entrée standard, en utilisant la bibliothèque HuggingFace transformers ou HuggingFace tokenizers, pour le modèle qui est sur HuggingFace ici : https://huggingface.co/openai/gpt-oss-20b

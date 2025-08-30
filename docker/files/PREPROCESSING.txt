@@ -1,9 +1,0 @@
-
-Preprocessing pour intégrer un nouveau document Word :
-- supprimer la numérotation automatiques des listes de références (ex.: EXG_SEC_1, EXG_SEC_2, etc.) :
-  - sauvegarder le word en .docm
-  - Alt-F11, this doc / insérer module
-  - appliquer macro remove_autonum.vbs
-  - exécuter la macro
-18h32 à ?
-
