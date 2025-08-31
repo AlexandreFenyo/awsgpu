@@ -21,6 +21,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import os
 
 try:
     import weaviate
@@ -32,7 +33,12 @@ except Exception as exc:
 
 def _connect_local():
     # Connect to a local Weaviate (default URL/env). Adjust here if needed.
-    return weaviate.connect_to_local()
+    weaviate_host = os.environ.get("WEAVIATE_HOST")
+    if weaviate_host:
+        return weaviate.connect_to_local(host=weaviate_host)
+    else:
+        # Pas d'URL fournie, on utilise la connexion locale par défaut
+        return weaviate.connect_to_local()
 
 
 def _ensure_collection(client, name: str, recreate: bool = True):
