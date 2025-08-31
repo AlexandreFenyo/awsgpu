@@ -1,7 +1,12 @@
 #!/bin/zsh
 
+# curl http://127.0.0.1:8123/cgi-bin/ws.cgi/help
+
 echo Content-type: text/html
 echo
+
+export WEAVIATE_HOST=weaviate-rag
+export OLLAMA_HOST=host.docker.internal
 
 date
 cd /var/www
@@ -29,11 +34,11 @@ case "$PATH_INFO" in
 
     /update-weaviate)
 	touch FICHIER
-	WEAVIATE_HOST=weaviate-rag ./src/pipeline-advanced/update_weaviate.py FICHIER 2>&1
+	./src/pipeline-advanced/update_weaviate.py FICHIER 2>&1
 	;;
 
     *)
-	echo Err: command not found 2>&1
+	echo 'Err: command not found (use .../ws.cgi/help)' 2>&1
 	;;
 esac
 

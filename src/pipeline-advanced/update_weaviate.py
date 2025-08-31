@@ -95,36 +95,6 @@ def _ensure_collection(client, name: str, recreate: bool = True):
             "vectorizer": Configure.Vectorizer.none(),
             "vector_index_config": Configure.VectorIndex.hnsw(),
         },
-        {
-            "name": "h1",
-            "vectorizer": Configure.Vectorizer.none(),
-            "vector_index_config": Configure.VectorIndex.hnsw(),
-        },
-        {
-            "name": "h2",
-            "vectorizer": Configure.Vectorizer.none(),
-            "vector_index_config": Configure.VectorIndex.hnsw(),
-        },
-        {
-            "name": "h3",
-            "vectorizer": Configure.Vectorizer.none(),
-            "vector_index_config": Configure.VectorIndex.hnsw(),
-        },
-        {
-            "name": "h4",
-            "vectorizer": Configure.Vectorizer.none(),
-            "vector_index_config": Configure.VectorIndex.hnsw(),
-        },
-        {
-            "name": "h5",
-            "vectorizer": Configure.Vectorizer.none(),
-            "vector_index_config": Configure.VectorIndex.hnsw(),
-        },
-        {
-            "name": "h6",
-            "vectorizer": Configure.Vectorizer.none(),
-            "vector_index_config": Configure.VectorIndex.hnsw(),
-        },
     ]
 
     if recreate:

@@ -247,8 +247,15 @@ def describe_image_with_ollama(data_url: str) -> str:
             "images": [b64],
             "stream": False,
         }
+
+        ollama_host = os.environ.get("OLLAMA_HOST")
+        if ollama_host:
+            host = ollama_host
+        else:
+            host = "172.22.64.1"
+    
         req = _urlrequest.Request(
-            "http://172.22.64.1:11434/api/generate",
+            "http://" + host + ":11434/api/generate",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -349,5 +356,3 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

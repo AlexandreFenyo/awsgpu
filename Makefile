@@ -8,7 +8,7 @@ build:
 	@docker build -t fenyoa/rag -f docker/Dockerfile .
 
 run: create-network
-	@docker run -d --name rag --rm --network weaviate-rag-network -p 8123:80 -v $(GITDIR)/awsgpu-docs:/var/awsgpu-docs -v $(GITDIR)/awsgpu/docker/tst.cgi:/usr/lib/cgi-bin/tst.cgi -v $(GITDIR)/awsgpu/docker/ws.cgi:/usr/lib/cgi-bin/ws.cgi fenyoa/rag
+	@docker run -d --name rag --rm --network weaviate-rag-network -p 8123:80 -v $(GITDIR)/awsgpu-docs:/var/awsgpu-docs -v $(GITDIR)/awsgpu/docker/tst.cgi:/usr/lib/cgi-bin/tst.cgi -v $(GITDIR)/awsgpu/docker/ws.cgi:/usr/lib/cgi-bin/ws.cgi -v $(GITDIR)/awsgpu/scripts:/var/www/scripts -v $(GITDIR)/awsgpu/src:/var/www/src fenyoa/rag
 
 run-interactive: create-network
 	@docker run --name rag --rm --network weaviate-rag-network -t -i -p 8123:80 -v $(GITDIR)/awsgpu-docs:/var/awsgpu-docs -v $(GITDIR)/awsgpu/docker/tst.cgi:/usr/lib/cgi-bin/tst.cgi -v $(GITDIR)/awsgpu/docker/ws.cgi:/usr/lib/cgi-bin/ws.cgi fenyoa/rag
@@ -32,6 +32,7 @@ rm-weaviate:
 stop-rm-weaviate: stop-weaviate rm-weaviate
 
 shell:
+	@echo should run: su - www-data
 	@docker exec -t -i rag zsh
 
 stop:

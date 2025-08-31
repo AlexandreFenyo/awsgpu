@@ -1,13 +1,10 @@
 #!/bin/zsh
 
 # Options:
-# -n: do not create collection nor schema, when processing a new document
 # -m: do not convert document to markdown, start from the md file
-NEW_DOC=""
 NO_CONVERT=""
 while getopts "nmh" opt; do
   case "$opt" in
-      n) NEW_DOC="-n" ;;
       m) NO_CONVERT="-m" ;;
       h) echo 'Usage: "$0" [-h] [-n] [-m] DOCUMENT' ; exit 0 ;;
     *) ;;
@@ -42,10 +39,5 @@ echo creating embeddings for text content:
 ./src/pipeline-advanced/create_embeddings.py $INPUT_FILE.html.md.converted.md.chunks.jq
 
 echo updating Weaviate for text content:
-if test -z "$NEW_DOC"
-then
-    ./src/pipeline-advanced/update_weaviate.py $INPUT_FILE.html.md.converted.md.chunks.jq.embeddings.ndjson
-else
-    ./src/pipeline-advanced/update_weaviate.py -n $INPUT_FILE.html.md.converted.md.chunks.jq.embeddings.ndjson
-fi
+./src/pipeline-advanced/update_weaviate.py $INPUT_FILE.html.md.converted.md.chunks.jq.embeddings.ndjson
 

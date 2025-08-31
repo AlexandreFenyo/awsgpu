@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Count tokens for text read from STDIN using the Hugging Face tokenizer
 for the openai/gpt-oss-20b model (or another specified model).
