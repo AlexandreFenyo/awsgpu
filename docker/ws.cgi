@@ -8,15 +8,15 @@ echo
 export WEAVIATE_HOST=weaviate-rag
 export OLLAMA_HOST=host.docker.internal
 
-echo -n "start time: "
-date
+#echo -n "start time: "
+#date
 
 cd /var/www
 source $HOME/.zshrc
 
 case "$PATH_INFO" in
     /help) # display help
-	cat $0 | egrep -v 'cat.*sed' | egrep '\s/.*)' | tr '/)' '  ' | sed 's/ *//' | sed 's/ *# */:\n    /'
+	cat $0 | egrep -v 'cat.*sed' | egrep '\s/.*)' | tr '/)' '  ' | sed 's/ *//' | sed 's/ *# */\n    /'
 	;;
 
     /clear) # clear Weaviate
@@ -44,12 +44,25 @@ case "$PATH_INFO" in
 	./src/pipeline-advanced/update_weaviate.py FICHIER 2>&1
 	;;
 
+    /markdown) # convert a file to Markdown
+	FILENAME=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^filename=' | sed 's/^filename=//' | base64 -d)
+	echo "converting file: $FILENAME"
+	./src/pipeline-advanced/convert_to_markdown.sh ../awsgpu-docs/collection/"$FILENAME" 2>&1
+	;;
+
+    /images) # convert images to text
+	FILENAME=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^filename=' | sed 's/^filename=//' | base64 -d)
+	echo "converting file: $FILENAME"
+#	./src/pipeline-advanced/./src/pipeline-advanced/describe_images.py ../awsgpu-docs/collection/"$FILENAME" 2>&1
+	;;
+
     *)
 	echo "Err: command '$PATH_INFO' not found (use .../ws.cgi/help)" 2>&1
 	;;
 esac
 
-echo -n "end time: "
-date
-echo END.
+#echo -n "end time: "
+#date
+#echo END.
+
 exit 0
