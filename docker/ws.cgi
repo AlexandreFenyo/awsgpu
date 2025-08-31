@@ -8,6 +8,9 @@ cd /var/www
 source $HOME/.zshrc
 
 case "$PATH_INFO" in
+    /help)
+	echo /ps /kill-all /sleep /launch-pipeline-advanced /update-weaviate
+	;;
     /ps)
 	ps -fauxgww
 	;;
@@ -25,6 +28,7 @@ case "$PATH_INFO" in
 	;;
 
     /update-weaviate)
+	touch FICHIER
 	WEAVIATE_HOST=weaviate-rag ./src/pipeline-advanced/update_weaviate.py FICHIER 2>&1
 	;;
 
