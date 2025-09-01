@@ -64,6 +64,6 @@ if [[ $OPENAI_LLM -eq 1 ]]; then
   merge_args+=(-o)
 fi
 
-./src/pipeline-advanced/merge_chunks.sh "${(@)merge_args}" "${JSONL}.embeddings.ndjson" "$QUESTION"
+./src/pipeline-advanced/merge_chunks.sh "${merge_args[@]}" "${JSONL}.embeddings.ndjson" "$QUESTION"
 
 date
