@@ -194,7 +194,7 @@ def _cache_file_path_for_image(input_path: str, data_url: str):
     sha1_hex = hashlib.sha1(b64.encode("ascii")).hexdigest()
     dir_name = os.path.dirname(input_path) or "."
     base_name = os.path.basename(input_path)
-    return os.path.join(dir_name, f"{base_name}.cache-{sha1_hex}.txt")
+    return os.path.join(dir_name, f"cache/{sha1_hex}.txt")
 
 def describe_image_with_openai(client: "OpenAI", data_url: str) -> str:
     """
@@ -239,9 +239,9 @@ def describe_image_with_ollama(data_url: str) -> str:
             return "<!-- Impossible d'extraire l'image PNG pour Ollama -->"
         b64 = m.group("b64")
         payload = {
-            "model": "Qwen2.5vl:32b",
+            # "model": "Qwen2.5vl:32b",
             # "model": "Qwen2.5vl:3b",
-            # "model": "Qwen2.5vl:72b",
+            "model": "Qwen2.5vl:72b",
             # "prompt": PROMPT_OLLAMA_FR,
             "prompt": PROMPT_FR,
             "images": [b64],

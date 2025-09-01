@@ -18,9 +18,9 @@ echo adding: CCTP_accueil.docx
 ./scripts/add-file.sh ../awsgpu-docs/collection/CCTP_accueil.docx
 
 #echo adding new document directly from MarkDown: ../awsgpu-docs/MESDMP_Annexe_12.docx
-#./scripts/launch-pipeline-advanced-add-file.sh -m ../awsgpu-docs/MESDMP_Annexe_12.docx
+#./scripts/add-file.sh -m ../awsgpu-docs/MESDMP_Annexe_12.docx
 
 #echo adding new document directly from MarkDown: ../awsgpu-docs/Memoire_Technique.docx
-#./scripts/launch-pipeline-advanced-add-file.sh -m ../awsgpu-docs/Memoire_Technique.docx
+#./scripts/add-file.sh -m ../awsgpu-docs/Memoire_Technique.docx
 
 date

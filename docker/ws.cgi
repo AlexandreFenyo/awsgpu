@@ -39,21 +39,27 @@ case "$PATH_INFO" in
 	./scripts/launch-pipeline-advanced.sh 2>&1
 	;;
 
-    /update-weaviate) # process a new file
-	touch FICHIER
-	./src/pipeline-advanced/update_weaviate.py FICHIER 2>&1
-	;;
-
     /markdown) # convert a file to Markdown
 	FILENAME=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^filename=' | sed 's/^filename=//' | base64 -d)
 	echo "converting file: $FILENAME"
 	./src/pipeline-advanced/convert_to_markdown.sh ../awsgpu-docs/collection/"$FILENAME" 2>&1
 	;;
 
-    /images) # convert images to text
+    /images) # convert Markdown images to text
 	FILENAME=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^filename=' | sed 's/^filename=//' | base64 -d)
-	echo "converting file: $FILENAME"
-#	./src/pipeline-advanced/./src/pipeline-advanced/describe_images.py ../awsgpu-docs/collection/"$FILENAME" 2>&1
+	echo "converting images from file: $FILENAME"
+	./src/pipeline-advanced/describe_images.py -l ../awsgpu-docs/collection/"$FILENAME".html.md 2>&1
+	;;
+
+    /embeddings) # create chunks and embeddings, then update Weaviate
+	FILENAME=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^filename=' | sed 's/^filename=//' | base64 -d)
+	echo "creatings chunks from file: $FILENAME"
+	./src/pipeline-advanced/create_chunks.py ../awsgpu-docs/collection/"$FILENAME".html.md.converted.md 2>&1
+	echo "creatings embeddings from file: $FILENAME"
+	rm -f ../awsgpu-docs/collection/"$FILENAME".html.md.converted.md.chunks.jq.paraphrase-xlm-r-multilingual-v1.emb_cache.jsonl 2>&1
+	./src/pipeline-advanced/create_embeddings.py ../awsgpu-docs/collection/"$FILENAME".html.md.converted.md.chunks.jq 2>&1
+	echo "updating Weaviate from file: $FILENAME"
+	./src/pipeline-advanced/update_weaviate.py ../awsgpu-docs/collection/"$FILENAME".html.md.converted.md.chunks.jq.embeddings.ndjson 2>&1
 	;;
 
     *)
