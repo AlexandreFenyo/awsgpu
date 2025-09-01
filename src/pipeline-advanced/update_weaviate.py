@@ -41,87 +41,6 @@ def _connect_local():
         return weaviate.connect_to_local()
 
 
-def _ensure_collection(client, name: str, recreate: bool = True):
-    """
-    Ensure a collection exists with vectorizer disabled and an appropriate schema.
-
-    If recreate is True, delete any existing collection and create it fresh with the expected schema.
-    If recreate is False, attempt to use the existing collection; if it doesn't exist, create it.
-    """
-    props = [
-        Property(name="chunk_id", data_type=DataType.TEXT),
-        Property(name="text", data_type=DataType.TEXT),
-        Property(name="approx_tokens", data_type=DataType.INT),
-        Property(name="keywords", data_type=DataType.TEXT_ARRAY),
-        Property(name="created_at", data_type=DataType.TEXT),
-        Property(
-            name="model",
-            data_type=DataType.OBJECT,
-            nested_properties=[
-                Property(name="name", data_type=DataType.TEXT),
-                Property(name="version", data_type=DataType.TEXT),
-            ],
-        ),
-        Property(
-            name="headings",
-            data_type=DataType.OBJECT,
-            nested_properties=[
-                Property(name="h1", data_type=DataType.TEXT),
-                Property(name="h2", data_type=DataType.TEXT),
-                Property(name="h3", data_type=DataType.TEXT),
-                Property(name="h4", data_type=DataType.TEXT),
-                Property(name="h5", data_type=DataType.TEXT),
-                Property(name="h6", data_type=DataType.TEXT),
-            ],
-        ),
-        Property(
-            name="heading",
-            data_type=DataType.OBJECT,
-            nested_properties=[
-                Property(name="h1", data_type=DataType.TEXT),
-                Property(name="h2", data_type=DataType.TEXT),
-                Property(name="h3", data_type=DataType.TEXT),
-                Property(name="h4", data_type=DataType.TEXT),
-                Property(name="h5", data_type=DataType.TEXT),
-                Property(name="h6", data_type=DataType.TEXT),
-            ],
-        ),
-        Property(name="full_headings", data_type=DataType.TEXT),
-    ]
-
-    vectors_conf = [
-        {
-            "name": "text",
-            "vectorizer": Configure.Vectorizer.none(),
-            "vector_index_config": Configure.VectorIndex.hnsw(),
-        },
-    ]
-
-    if recreate:
-        try:
-            client.collections.delete(name)
-        except Exception:
-            # Ignore if it doesn't exist yet
-            pass
-        client.collections.create(
-            name=name,
-            properties=props,
-            vector_config=vectors_conf,
-        )
-        return client.collections.get(name)
-
-    # No recreation: try to use existing collection; create only if missing.
-    try:
-        return client.collections.get(name)
-    except Exception:
-        client.collections.create(
-            name=name,
-            properties=props,
-            vector_config=vectors_conf,
-        )
-        return client.collections.get(name)
-
-
 def _to_float_list(vec: Any) -> Optional[List[float]]:
     if vec is None:
         return None
@@ -142,7 +61,7 @@ def upload_embeddings_to_weaviate(input_path: str, collection_name: str = "rag_c
 
     client = _connect_local()
     try:
-        coll = _ensure_collection(client, collection_name, recreate=recreate)
+        coll = client.collections.get(collection_name)
 
         inserted = 0
         # Insert one by one using data.insert to support named vectors across client versions.

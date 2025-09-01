@@ -5,7 +5,7 @@ ENV TERM=vt100
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /var/www
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends software-properties-common ca-certificates curl wget iproute2 net-tools less zsh apache2 vim inetutils-telnet inetutils-ping npm nodejs ts-node dnsutils inkscape imagemagick && add-apt-repository ppa:deadsnakes/ppa -y && apt-get update && apt-get install -y --no-install-recommends python3.13 python3.13-venv python3-pip dnsutils && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends software-properties-common ca-certificates curl wget iproute2 net-tools less zsh apache2 vim inetutils-telnet inetutils-ping npm nodejs ts-node dnsutils inkscape imagemagick jq && add-apt-repository ppa:deadsnakes/ppa -y && apt-get update && apt-get install -y --no-install-recommends python3.13 python3.13-venv python3-pip dnsutils && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 RUN chsh -s /bin/zsh
 RUN echo "alias ls='ls -F'" >> $HOME/.zshrc
 COPY pyproject.toml poetry.toml poetry.lock package.json package-lock.json .

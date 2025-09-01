@@ -3,16 +3,16 @@
 date
 
 #echo stopping Weaviate:
-#./scripts/stop-weaviate.sh
+./scripts/stop-weaviate.sh
 
 #echo starting Weaviate:
-#./scripts/start-weaviate.sh
+./scripts/start-weaviate.sh
 
 echo init or reset collection:
 ./src/pipeline-advanced/init_or_reset_collection.py
 
-echo adding: CCTP.docx
-./scripts/launch-pipeline-advanced-add-file.sh -m ../awsgpu-docs/collection/CCTP.docx
+#echo adding: CCTP.docx
+#./scripts/add-file.sh ../awsgpu-docs/collection/CCTP.docx
 
 echo adding: CCTP_accueil.docx
 ./scripts/add-file.sh ../awsgpu-docs/collection/CCTP_accueil.docx

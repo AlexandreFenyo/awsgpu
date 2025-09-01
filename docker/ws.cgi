@@ -1,5 +1,4 @@
 #!/bin/zsh
-
 # curl http://127.0.0.1:8123/cgi-bin/ws.cgi/help
 
 echo Content-type: text/html
@@ -30,11 +29,11 @@ case "$PATH_INFO" in
     /kill-all) # kill background processes
 	ps -fax | grep -v /usr/sbin/apache2 | awk '{ print $1; }' | fgrep -v $$ | fgrep -v PID | xargs /usr/bin/kill -9
 	;;
-    
+
     /sleep) # fork a sleep for 1 hour, to help debugging
 	nohup sleep 3600 >& /dev/null &
 	;;
-    
+
     /launch-pipeline-advanced) # run launch-pipeline-advanced.sh
 	./scripts/launch-pipeline-advanced.sh 2>&1
 	;;
@@ -53,13 +52,38 @@ case "$PATH_INFO" in
 
     /embeddings) # create chunks and embeddings, then update Weaviate
 	FILENAME=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^filename=' | sed 's/^filename=//' | base64 -d)
-	echo "creatings chunks from file: $FILENAME"
+	echo "creating chunks from file: $FILENAME"
 	./src/pipeline-advanced/create_chunks.py ../awsgpu-docs/collection/"$FILENAME".html.md.converted.md 2>&1
-	echo "creatings embeddings from file: $FILENAME"
+	echo "creating embeddings from file: $FILENAME"
 	rm -f ../awsgpu-docs/collection/"$FILENAME".html.md.converted.md.chunks.jq.paraphrase-xlm-r-multilingual-v1.emb_cache.jsonl 2>&1
 	./src/pipeline-advanced/create_embeddings.py ../awsgpu-docs/collection/"$FILENAME".html.md.converted.md.chunks.jq 2>&1
 	echo "updating Weaviate from file: $FILENAME"
 	./src/pipeline-advanced/update_weaviate.py ../awsgpu-docs/collection/"$FILENAME".html.md.converted.md.chunks.jq.embeddings.ndjson 2>&1
+	;;
+
+    /request) # request local model
+	REQUEST=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^request=' | sed 's/^request=//' | base64 -d)
+	echo "requesting the model"
+	./scripts/request.sh -r "$REQUEST" 2>&1
+	;;
+
+    /request-openai) # request OpenAI
+	REQUEST=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^request=' | sed 's/^request=//' | base64 -d)
+	export OPENAIAPIKEY=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^apikey=' | sed 's/^apikey=//' | base64 -d)
+	echo "requesting the model"
+	./scripts/request.sh -o -r "$REQUEST" 2>&1
+	;;
+
+    /request-embeddings) # only create embeddings
+	REQUEST=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^request=' | sed 's/^request=//' | base64 -d)
+	echo "create embeddings"
+	./scripts/request.sh -n "$REQUEST" 2>&1
+	;;
+
+    /request-embeddings-reranked) # only create reranked embeddings
+	REQUEST=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^request=' | sed 's/^request=//' | base64 -d)
+	echo "create embeddings and rerank them"
+	./scripts/request.sh -n -r "$REQUEST" 2>&1
 	;;
 
     *)

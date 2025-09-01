@@ -39,23 +39,31 @@ echo "Voici les questions :\n$QUESTIONS" >> "$PREFIX.prompt"
 
 PROMPT_CONTENT=`cat "$PREFIX.prompt"`
 
-REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-nano", "messages": [{"role": "user", "content": $content}]}')
-#REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": $content}]}')
-
 echo
 echo -n "Input tokens: "
-echo "$REQUEST" | ./src/pipeline-advanced/count_tokens.py
+echo "$PROMPT_CONTENT" | ./src/pipeline-advanced/count_tokens.py
 echo
 
-if (( DRY_RUN )); then
-  echo "$REQUEST"
-  exit 0
-fi
-
 if (( OPENAI_LLM )); then
-  curl https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${OPENAIAPIKEY}" -d "$REQUEST" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
+
+    REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-nano", "messages": [{"role": "user", "content": $content}]}')
+    #REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": $content}]}')
+    if (( DRY_RUN )); then
+	echo "$REQUEST"
+	exit 0
+    fi
+
+    curl https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${OPENAIAPIKEY}" -d "$REQUEST" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
+
 else
-# Décommenter la ligne correspondant au modèle sur lequel s'appuyer :
-#echo "$PROMPT_CONTENT" | /mnt/c/Users/Alexandre\ Fenyo/AppData/Local/Programs/Ollama/ollama.exe run gpt-oss:20b
-echo "$PROMPT_CONTENT" | /mnt/c/Users/Alexandre\ Fenyo/AppData/Local/Programs/Ollama/ollama.exe run gpt-oss:120b
+
+    REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-oss:120b", "messages": [{"role": "user", "content": $content}]}')
+    if (( DRY_RUN )); then
+	echo "$REQUEST"
+	exit 0
+    fi
+
+    curl "http://$OLLAMA_HOST:11434/v1/chat/completions" -H "Content-Type: application/json" -d "$REQUEST" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
+    #echo "$PROMPT_CONTENT" | /mnt/c/Users/Alexandre\ Fenyo/AppData/Local/Programs/Ollama/ollama.exe run gpt-oss:120b
+
 fi

@@ -260,7 +260,8 @@ def describe_image_with_ollama(data_url: str) -> str:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with _urlrequest.urlopen(req, timeout=1200) as resp:
+        # timeout after 15 min
+        with _urlrequest.urlopen(req, timeout=1800) as resp:
             body = resp.read()
         data = json.loads(body.decode("utf-8"))
         content = data.get("response", "")

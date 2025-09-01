@@ -22,6 +22,7 @@ import argparse
 import json
 import sys
 from typing import Any, Dict, List
+import os
 
 import numpy as np
 import sentence_transformers
@@ -39,6 +40,16 @@ except Exception as exc:
 _MODEL_NAME = "paraphrase-xlm-r-multilingual-v1"
 
 
+def _connect_local():
+    # Connect to a local Weaviate (default URL/env). Adjust here if needed.
+    weaviate_host = os.environ.get("WEAVIATE_HOST")
+    if weaviate_host:
+        return weaviate.connect_to_local(host=weaviate_host)
+    else:
+        # Pas d'URL fournie, on utilise la connexion locale par défaut
+        return weaviate.connect_to_local()
+
+    
 def _embed_query(text: str) -> List[float]:
     model = SentenceTransformer(_MODEL_NAME)
     vec = model.encode([text], convert_to_numpy=True, show_progress_bar=False)
@@ -54,7 +65,7 @@ def _embed_query(text: str) -> List[float]:
 def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chunks") -> List[Dict[str, Any]]:
     vector = _embed_query(query)
 
-    client = weaviate.connect_to_local()
+    client = _connect_local()
     try:
         coll = client.collections.get(collection_name)
 
