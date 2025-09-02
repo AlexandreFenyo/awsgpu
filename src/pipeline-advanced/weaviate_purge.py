@@ -47,21 +47,23 @@ def purge_by_filename(file_name: str, collection_name: str = "rag_chunks") -> in
     try:
         coll = client.collections.get(collection_name)
 
-        # Construire un filtre "like" pour tous les chunk_id commençant par "<file_name>-"
-        where_filter = Filter.by_property("chunk_id").like(f"{file_name}-*")
+        # Compter les correspondances en scannant avec pagination (compatibilité client sans 'where')
+        pattern = re.compile(rf"^{re.escape(file_name)}-(\d+)$")
 
-        # Compter le nombre de correspondances via pagination filtrée
         total_match = 0
         resp = coll.query.fetch_objects(
             limit=1000,
             return_properties=["chunk_id"],
-            where=where_filter,
         )
 
         def consume(page) -> None:
             nonlocal total_match
             objs = getattr(page, "objects", None) or []
-            total_match += len(objs)
+            for obj in objs:
+                props = getattr(obj, "properties", None) or {}
+                chunk_id = props.get("chunk_id")
+                if isinstance(chunk_id, str) and pattern.match(chunk_id):
+                    total_match += 1
 
         consume(resp)
 
@@ -73,14 +75,14 @@ def purge_by_filename(file_name: str, collection_name: str = "rag_chunks") -> in
                 limit=1000,
                 return_properties=["chunk_id"],
                 after=cursor,
-                where=where_filter,
             )
             consume(resp)
 
         if total_match == 0:
             return 0
 
-        # Suppression en masse avec le même filtre
+        # Suppression en masse avec un filtre de type 'like'
+        where_filter = Filter.by_property("chunk_id").like(f"{file_name}-*")
         coll.data.delete_many(where=where_filter)
 
         return total_match
