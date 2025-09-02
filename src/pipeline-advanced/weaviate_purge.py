@@ -47,42 +47,38 @@ def purge_by_filename(file_name: str, collection_name: str = "rag_chunks") -> in
     try:
         coll = client.collections.get(collection_name)
 
-        # Compter les correspondances en scannant avec pagination (compatibilité client sans 'where')
-        pattern = re.compile(rf"^{re.escape(file_name)}-(\d+)$")
+        # Construire un filtre "like" et compter via pagination filtrée (client >=4.16.9)
+        where_filter = Filter.by_property("chunk_id").like(f"{file_name}-*")
 
         total_match = 0
-        resp = coll.query.fetch_objects(
-            limit=1000,
-            return_properties=["chunk_id"],
-        )
+        cursor = None
+        limit = 1000
 
-        def consume(page) -> None:
-            nonlocal total_match
-            objs = getattr(page, "objects", None) or []
-            for obj in objs:
-                props = getattr(obj, "properties", None) or {}
-                chunk_id = props.get("chunk_id")
-                if isinstance(chunk_id, str) and pattern.match(chunk_id):
-                    total_match += 1
-
-        consume(resp)
-
-        while getattr(resp, "has_next_page", False):
-            cursor = getattr(resp, "cursor", None) or getattr(resp, "next_cursor", None)
-            if not cursor:
-                break
+        while True:
             resp = coll.query.fetch_objects(
-                limit=1000,
+                limit=limit,
                 return_properties=["chunk_id"],
+                filters=where_filter,
                 after=cursor,
             )
-            consume(resp)
+            objs = getattr(resp, "objects", None) or []
+            total_match += len(objs)
+
+            # Récupère le prochain curseur
+            next_cursor = (
+                getattr(resp, "cursor", None)
+                or getattr(resp, "next_cursor", None)
+                or getattr(getattr(resp, "page_info", None), "end_cursor", None)
+            )
+
+            if not next_cursor or len(objs) < limit:
+                break
+            cursor = next_cursor
 
         if total_match == 0:
             return 0
 
-        # Suppression en masse avec un filtre de type 'like'
-        where_filter = Filter.by_property("chunk_id").like(f"{file_name}-*")
+        # Suppression en masse
         coll.data.delete_many(where=where_filter)
 
         return total_match

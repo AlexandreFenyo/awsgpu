@@ -64,12 +64,16 @@ def collect_counts(collection_name: str) -> Tuple[int, Dict[str, int]]:
         total = 0
         per_file = defaultdict(int)
 
-        # Première page
-        resp = coll.query.fetch_objects(limit=1000, return_properties=["chunk_id"])
+        limit = 1000
+        cursor = None
 
-        def consume(page) -> None:
-            nonlocal total
-            objs = getattr(page, "objects", None) or []
+        while True:
+            resp = coll.query.fetch_objects(
+                limit=limit,
+                return_properties=["chunk_id"],
+                after=cursor,
+            )
+            objs = getattr(resp, "objects", None) or []
             for obj in objs:
                 props = getattr(obj, "properties", None) or {}
                 chunk_id = props.get("chunk_id")
@@ -79,19 +83,15 @@ def collect_counts(collection_name: str) -> Tuple[int, Dict[str, int]]:
                         per_file[fname] += 1
                 total += 1
 
-        consume(resp)
-
-        # Pagination par curseur si disponible
-        while getattr(resp, "has_next_page", False):
-            cursor = getattr(resp, "cursor", None) or getattr(resp, "next_cursor", None)
-            if not cursor:
-                break
-            resp = coll.query.fetch_objects(
-                limit=1000,
-                return_properties=["chunk_id"],
-                after=cursor,
+            next_cursor = (
+                getattr(resp, "cursor", None)
+                or getattr(resp, "next_cursor", None)
+                or getattr(getattr(resp, "page_info", None), "end_cursor", None)
             )
-            consume(resp)
+
+            if not next_cursor or len(objs) < limit:
+                break
+            cursor = next_cursor
 
         return total, dict(per_file)
     finally:
