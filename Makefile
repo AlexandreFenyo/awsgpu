@@ -22,6 +22,9 @@ run-weaviate: create-network
 # ports exposés: 8080 et 50051
 	@docker run -d --name weaviate-rag --network weaviate-rag-network -e GRPC_ENABLED=true -e GRPC_PORT=50051 -e QUERY_DEFAULTS_LIMIT=50 -e AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true -e PERSISTENCE_DATA_PATH=/tmp/weaviate -v weaviate-rag-data:/tmp/weaviate semitechnologies/weaviate:latest
 
+start-weaviate:
+	@docker start weaviate-rag
+
 stop-weaviate:
 	-@docker stop weaviate-rag
 

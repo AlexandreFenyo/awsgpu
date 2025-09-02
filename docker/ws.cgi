@@ -18,7 +18,11 @@ case "$PATH_INFO" in
 	cat $0 | egrep -v 'cat.*sed' | egrep '\s/.*)' | tr '/)' '  ' | sed 's/ *//' | sed 's/ *# */\n    /'
 	;;
 
-    /clear) # clear Weaviate
+    /info) # display statistics on Weaviate content
+	./src/pipeline-advanced/weaviate_infos.py
+	;;
+
+    /clear) # init or clear Weaviate
 	./src/pipeline-advanced/init_or_reset_collection.py 2>&1
 	;;
 
@@ -30,12 +34,22 @@ case "$PATH_INFO" in
 	ps -fax | grep -v /usr/sbin/apache2 | awk '{ print $1; }' | fgrep -v $$ | fgrep -v PID | xargs /usr/bin/kill -9
 	;;
 
-    /sleep) # fork a sleep for 1 hour, to help debugging
+    /sleep-bg) # fork a background sleep for 1 hour, to help debugging
 	nohup sleep 3600 >& /dev/null &
+	;;
+
+    /sleep-fg) # fork a foreground sleep for 1 hour, to help debugging
+	nohup sleep 3600 >& /dev/null
 	;;
 
     /launch-pipeline-advanced) # run launch-pipeline-advanced.sh
 	./scripts/launch-pipeline-advanced.sh 2>&1
+	;;
+
+    /purge) # remove objects relative to a file from Weaviate
+	FILENAME=$(echo $QUERY_STRING | sed 's/&/\n/' | egrep '^filename=' | sed 's/^filename=//' | base64 -d)
+	echo "remove objects relative to file $FILENAME"
+	./src/pipeline-advanced/weaviate_purge.py "$FILENAME" 2>&1
 	;;
 
     /markdown) # convert a file to Markdown

@@ -1,0 +1,7 @@
+
+La propriété chunk_id de chaque objet de cette collection a le format suivant : un nom de fichier, suivi d'un tiret ("-"), suivi d'un nombre correspondant à un numéro d'ordre du chunk dans le fichier.
+Voici un exemple pour le 6ième chunk_id du fichier CCTP.docx.html.md.converted :
+"chunk_id": "CCTP.docx.html.md.converted-6"
+
+Crée un script Python qui interroge la base Weaviate pour afficher le nombre total d'objets dans la collection rag_chunks.
+Ensuite, en te basant sur la valeur de la propriété chunk_id de chaque objet de cette collection, ce script affiche les différents noms de fichiers présents, avec entre parenthèse derrière chaque nom de fichier le nombre de chunks associés.

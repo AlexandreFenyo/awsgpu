@@ -26,6 +26,7 @@ ENV APACHE_RUN_DIR=/var/run/apache2
 ENV APACHE_PID_FILE=/var/run/apache2/apache2.pid
 RUN cp /etc/apache2/mods-available/cgi.load /etc/apache2/mods-enabled
 RUN sed -i 's%#Include conf-available/serve-cgi-bin.conf%Include conf-available/serve-cgi-bin.conf%' /etc/apache2/sites-enabled/000-default.conf
+RUN sed -i 's%Timeout 300%Timeout 3600%' /etc/apache2/apache2.conf
 COPY docker/tst.cgi /usr/lib/cgi-bin/tst.cgi
 COPY docker/ws.cgi /usr/lib/cgi-bin/ws.cgi
 RUN chmod +x /usr/lib/cgi-bin/tst.cgi /usr/lib/cgi-bin/ws.cgi

@@ -26,6 +26,17 @@ then
     exit 0
 fi
 
+# ./rag.sh purge CCTP_af.docx
+if test "$1" = 'purge'
+then
+    test -z "$2" && echo Error: must give a FILENAME && exit 1
+    SHORTFILENAME=$(echo "$2" | sed 's%.*/%%')
+    # lancer via WS : ./src/pipeline-advanced/purge.sh CCTP_af.docx
+    SHORTFILENAMEB64=$(echo -n $SHORTFILENAME | base64 -w 0)
+    curl "http://127.0.0.1:8123/cgi-bin/ws.cgi/purge?filename=$SHORTFILENAMEB64"
+    exit 0
+fi
+
 # ./rag.sh images CCTP_af.docx => CCTP_af.docx.html.md.converted.md
 if test "$1" = 'images'
 then
