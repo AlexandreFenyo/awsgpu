@@ -17,6 +17,7 @@ from typing import List, Optional
 
 try:
     import weaviate
+    from weaviate.classes.query import Filter
 except Exception:
     print("Erreur: weaviate-client est requis. Installez-le avec: pip install weaviate-client", file=sys.stderr)
     raise
@@ -42,30 +43,28 @@ def purge_by_filename(file_name: str, collection_name: str = "rag_chunks") -> in
     if not file_name:
         raise ValueError("file_name ne doit pas être vide")
 
-    pattern = re.compile(rf"^{re.escape(file_name)}-(\d+)$")
-
     client = _connect_local()
     try:
         coll = client.collections.get(collection_name)
 
-        # Collecter d'abord tous les UUIDs à supprimer (pour éviter les soucis de pagination après suppression)
-        to_delete: List[str] = []
+        # Construire un filtre "like" pour tous les chunk_id commençant par "<file_name>-"
+        where_filter = Filter.by_property("chunk_id").like(f"{file_name}-*")
 
-        resp = coll.query.fetch_objects(limit=1000, return_properties=["chunk_id"])
+        # Compter le nombre de correspondances via pagination filtrée
+        total_match = 0
+        resp = coll.query.fetch_objects(
+            limit=1000,
+            return_properties=["chunk_id"],
+            where=where_filter,
+        )
 
-        def collect(page) -> None:
+        def consume(page) -> None:
+            nonlocal total_match
             objs = getattr(page, "objects", None) or []
-            for obj in objs:
-                props = getattr(obj, "properties", None) or {}
-                chunk_id = props.get("chunk_id")
-                if isinstance(chunk_id, str) and pattern.match(chunk_id):
-                    uid = getattr(obj, "uuid", None) or getattr(obj, "id", None)
-                    if isinstance(uid, str):
-                        to_delete.append(uid)
+            total_match += len(objs)
 
-        collect(resp)
+        consume(resp)
 
-        # Pagination
         while getattr(resp, "has_next_page", False):
             cursor = getattr(resp, "cursor", None) or getattr(resp, "next_cursor", None)
             if not cursor:
@@ -74,20 +73,17 @@ def purge_by_filename(file_name: str, collection_name: str = "rag_chunks") -> in
                 limit=1000,
                 return_properties=["chunk_id"],
                 after=cursor,
+                where=where_filter,
             )
-            collect(resp)
+            consume(resp)
 
-        # Supprimer
-        deleted = 0
-        for uid in to_delete:
-            try:
-                coll.data.delete_by_id(uid)
-                deleted += 1
-            except Exception:
-                # Continuer même si une suppression échoue; on pourrait logger si besoin
-                pass
+        if total_match == 0:
+            return 0
 
-        return deleted
+        # Suppression en masse avec le même filtre
+        coll.data.delete_many(where=where_filter)
+
+        return total_match
     finally:
         client.close()
 
