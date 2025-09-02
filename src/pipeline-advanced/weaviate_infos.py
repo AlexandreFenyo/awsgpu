@@ -65,13 +65,13 @@ def collect_counts(collection_name: str) -> Tuple[int, Dict[str, int]]:
         per_file = defaultdict(int)
 
         limit = 1000
-        cursor = None
+        after = None
 
         while True:
             resp = coll.query.fetch_objects(
                 limit=limit,
                 return_properties=["chunk_id"],
-                after=cursor,
+                after=after,
             )
             objs = getattr(resp, "objects", None) or []
             for obj in objs:
@@ -83,15 +83,19 @@ def collect_counts(collection_name: str) -> Tuple[int, Dict[str, int]]:
                         per_file[fname] += 1
                 total += 1
 
-            next_cursor = (
+            # Prefer server-provided cursor; otherwise fall back to last object's UUID
+            server_cursor = (
                 getattr(resp, "cursor", None)
                 or getattr(resp, "next_cursor", None)
                 or getattr(getattr(resp, "page_info", None), "end_cursor", None)
             )
 
-            if not next_cursor or len(objs) < limit:
+            if len(objs) < limit:
                 break
-            cursor = next_cursor
+
+            after = server_cursor or (getattr(objs[-1], "uuid", None) or getattr(objs[-1], "id", None))
+            if not after:
+                break
 
         return total, dict(per_file)
     finally:
