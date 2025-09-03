@@ -46,24 +46,22 @@ echo
 
 if (( OPENAI_LLM )); then
 
-    REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-nano", "messages": [{"role": "user", "content": $content}]}')
-    #REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": $content}]}')
+    jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-5-nano", "messages": [{"role": "user", "content": $content}]}' > "$PREFIX.req"
     if (( DRY_RUN )); then
-	echo "$REQUEST"
+	cat "$PREFIX.req"
 	exit 0
     fi
 
-    curl https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${OPENAIAPIKEY}" -d "$REQUEST" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
+    curl https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${OPENAIAPIKEY}" -d "@$PREFIX.req" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
 
 else
 
-    REQUEST=$(jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-oss:120b", "messages": [{"role": "user", "content": $content}]}')
+    jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-oss:120b", "messages": [{"role": "user", "content": $content}]}' > "$PREFIX.req"
     if (( DRY_RUN )); then
-	echo "$REQUEST"
+	cat "$PREFIX.req"
 	exit 0
     fi
 
-    curl "http://$OLLAMA_HOST:11434/v1/chat/completions" -H "Content-Type: application/json" -d "$REQUEST" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
-    #echo "$PROMPT_CONTENT" | /mnt/c/Users/Alexandre\ Fenyo/AppData/Local/Programs/Ollama/ollama.exe run gpt-oss:120b
+    curl "http://$OLLAMA_HOST:11434/v1/chat/completions" -H "Content-Type: application/json" -d "@$PREFIX.req" > "$PREFIX.prompt.answer" ; cat "$PREFIX.prompt.answer" | jq -r '.choices[0].message.content'
 
 fi
