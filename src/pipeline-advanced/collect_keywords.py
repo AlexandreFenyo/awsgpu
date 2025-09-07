@@ -20,6 +20,7 @@ Keyphrase extraction:
 - Candidates from:
   - Named entities (doc.ents)
   - Noun phrases (doc.noun_chunks)
+  - Quoted names (between "…" or « … »)
   - Frequent 1–3-gram sequences of NOUN/PROPN/ADJ tokens
 - Normalization: lowercase + light lemmatization; de-duplicates.
 
@@ -32,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from typing import Iterable, List, Tuple
@@ -70,6 +72,33 @@ def _valid_phrase(s: str) -> bool:
     return len(compact) >= 3
 
 
+def _extract_quoted_names(text: str, nlp) -> List[str]:
+    """
+    Extract phrases that appear inside quotes (", “ ”, « »), normalize them,
+    and keep up to 1–3 tokens per phrase.
+    """
+    patterns = [
+        r'"([^"\n]{2,})"',
+        r'“([^”\n]{2,})”',
+        r'«\s*([^»\n]{2,})\s*»',
+    ]
+    phrases: List[str] = []
+    for pat in patterns:
+        for m in re.finditer(pat, text):
+            raw = (m.group(1) or "").strip()
+            if len(raw) < 2:
+                continue
+            # Use full pipeline to get lemmas/stopwords/pos
+            doc = nlp(raw)
+            toks_norm = _normalize_tokens(doc)
+            if not toks_norm or len(toks_norm) > 3:
+                continue
+            phrase = " ".join(toks_norm)
+            if _valid_phrase(phrase):
+                phrases.append(phrase)
+    return phrases
+
+
 def extract_keywords_spacy(text: str, nlp, min_kw: int = 6, max_kw: int = 8) -> List[str]:
     """
     Extract ~min_kw..max_kw French keyphrases from text using spaCy.
@@ -90,7 +119,9 @@ def extract_keywords_spacy(text: str, nlp, min_kw: int = 6, max_kw: int = 8) -> 
         if 1 <= len(toks) <= 3:
             phrase = " ".join(toks)
             if _valid_phrase(phrase):
-                candidates[phrase] += 2.0  # strong seed weight
+                lbl = (ent.label_ or "").upper()
+                weight = 3.0 if lbl in {"ORG", "PRODUCT", "WORK_OF_ART", "MISC"} else 2.0
+                candidates[phrase] += weight  # stronger weight for product/org-like entities
                 ent_set.add(phrase)
 
     # Noun phrases
@@ -107,6 +138,10 @@ def extract_keywords_spacy(text: str, nlp, min_kw: int = 6, max_kw: int = 8) -> 
                 if _valid_phrase(phrase):
                     candidates[phrase] += 1.5
                     np_set.add(phrase)
+
+    # Quoted names (e.g., "…", “…”, « … »)
+    for phrase in _extract_quoted_names(text, nlp):
+        candidates[phrase] += 2.5
 
     # Frequent 1–3-grams over content tokens
     content_tokens = [t for t in doc if t.pos_ in ("NOUN", "PROPN", "ADJ") and not (t.is_stop or t.is_punct or t.is_space or t.like_num)]
