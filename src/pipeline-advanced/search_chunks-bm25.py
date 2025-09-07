@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """
-Search nearest chunks in Weaviate using a text query.
+Search nearest chunks in Weaviate using BM25 (keyword) search.
 
 - Connects to a local Weaviate instance (gRPC + REST).
-- Embeds the input text query with sentence-transformers
-  ('paraphrase-xlm-r-multilingual-v1').
-- Runs a vector search against the stored embeddings (vectorizer = none).
+- Uses Weaviate's BM25 keyword search over the 'text' property (inverted index).
+- No embeddings are used.
 - Prints results to stdout, one JSON object per line.
 
 Usage:
-  ./src/pipeline-advanced/search_chunks.py "your query text"
-  ./src/pipeline-advanced/search_chunks.py -k 25 -c rag_chunks "contrat de maintenance"
+  ./src/pipeline-advanced/search_chunks-bm25.py "your query text"
+  ./src/pipeline-advanced/search_chunks-bm25.py -k 25 -c rag_chunks "contrat de maintenance"
 
 Each result line includes:
-  { chunk_id, text, distance, approx_tokens, keywords, headings, heading, full_headings, created_at }
+  { chunk_id, text, score, approx_tokens, keywords, headings, heading, full_headings, created_at }
 """
 
 from __future__ import annotations
@@ -24,9 +23,6 @@ import sys
 from typing import Any, Dict, List
 import os
 
-import numpy as np
-import sentence_transformers
-from sentence_transformers import SentenceTransformer
 
 try:
     import weaviate
@@ -37,7 +33,6 @@ except Exception as exc:
     raise
 
 
-_MODEL_NAME = "paraphrase-xlm-r-multilingual-v1"
 
 
 def _connect_local():
@@ -50,29 +45,17 @@ def _connect_local():
         return weaviate.connect_to_local()
 
     
-def _embed_query(text: str) -> List[float]:
-    model = SentenceTransformer(_MODEL_NAME)
-    vec = model.encode([text], convert_to_numpy=True, show_progress_bar=False)
-    if isinstance(vec, list):
-        emb = [float(x) for x in vec[0]]
-    elif isinstance(vec, np.ndarray):
-        emb = vec[0].astype(float).tolist()
-    else:
-        emb = [float(x) for x in np.array(vec)[0].astype(float).tolist()]
-    return emb
 
 
 def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chunks") -> List[Dict[str, Any]]:
-    vector = _embed_query(query)
-
     client = _connect_local()
     try:
         coll = client.collections.get(collection_name)
 
-        results = coll.query.near_vector(
-            near_vector=vector,
+        results = coll.query.bm25(
+            query=query,
             limit=limit,
-            target_vector="text",
+            properties=["text"],
             return_properties=[
                 "chunk_id",
                 "text",
@@ -83,7 +66,7 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
                 QueryNested(name="heading", properties=["h1", "h2", "h3", "h4", "h5", "h6"]),
                 "full_headings",
             ],
-            return_metadata=MetadataQuery(distance=True),
+            return_metadata=MetadataQuery(score=True),
         )
 
         out: List[Dict[str, Any]] = []
@@ -93,7 +76,7 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
                 {
                     "chunk_id": props.get("chunk_id"),
                     "text": props.get("text"),
-                    "distance": getattr(obj.metadata, "distance", None),
+                    "score": getattr(obj.metadata, "score", None),
                     "approx_tokens": props.get("approx_tokens"),
                     "keywords": props.get("keywords"),
                     "headings": props.get("headings"),
@@ -108,7 +91,7 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
 
 
 def main(argv: List[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Search nearest chunks in Weaviate using a text query.")
+    parser = argparse.ArgumentParser(description="Search nearest chunks in Weaviate using BM25 keyword search.")
     parser.add_argument("query", help="Text query to search for nearest chunks")
     parser.add_argument(
         "-k",
