@@ -35,6 +35,14 @@ from sentence_transformers import SentenceTransformer
 
 _MODEL_NAME = "paraphrase-xlm-r-multilingual-v1"
 
+_ALLOWED_MODELS = [
+    "paraphrase-xlm-r-multilingual-v1",
+    "intfloat/multilingual-e5-large",
+    "BAAI/bge-multilingual-gemma2",
+    "sentence-transformers/sentence-t5-xl",
+    "sentence-transformers/all-mpnet-base-v2",
+]
+
 
 def _cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
     """
@@ -52,8 +60,8 @@ def _cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
     return 1.0 - cos_sim
 
 
-def _embed_texts(texts: List[str]) -> np.ndarray:
-    model = SentenceTransformer(_MODEL_NAME)
+def _embed_texts(texts: List[str], model_name: str) -> np.ndarray:
+    model = SentenceTransformer(model_name)
     vecs = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
     if isinstance(vecs, list):
         # Rare selon les versions, mais on gère le cas
@@ -61,15 +69,15 @@ def _embed_texts(texts: List[str]) -> np.ndarray:
     return vecs.astype(float)
 
 
-def compute_distance(text1: str, text2: str) -> dict:
-    vecs = _embed_texts([text1, text2])
+def compute_distance(text1: str, text2: str, model_name: str = _MODEL_NAME) -> dict:
+    vecs = _embed_texts([text1, text2], model_name)
     a, b = vecs[0], vecs[1]
     dist = _cosine_distance(a, b)
     sim = 1.0 - dist
     return {
         "text1": text1,
         "text2": text2,
-        "model": {"name": _MODEL_NAME, "version": getattr(sentence_transformers, "__version__", "unknown")},
+        "model": {"name": model_name, "version": getattr(sentence_transformers, "__version__", "unknown")},
         "metric": "cosine",
         "distance": dist,
         "similarity": sim,
@@ -82,10 +90,17 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument("text1", help="Première chaîne")
     parser.add_argument("text2", help="Deuxième chaîne")
+    parser.add_argument(
+        "-m",
+        "--model",
+        choices=_ALLOWED_MODELS,
+        default=_MODEL_NAME,
+        help="Nom du modèle sentence-transformers à utiliser",
+    )
     args = parser.parse_args(argv)
 
     try:
-        result = compute_distance(args.text1, args.text2)
+        result = compute_distance(args.text1, args.text2, model_name=args.model)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
