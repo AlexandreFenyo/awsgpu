@@ -1,6 +1,19 @@
 
 TDL :
 
+il faut créer un vocabulaire du corpus, pour la recherche par mots-clés
+Il faut créer des liens dans le vocabulaire : par ex Jenkins <=> Forge
+et quand on recherche avec mots clés issus de la question, il faut rechercher aussi les chunks avec les mots clés associés à ces liens
+Il faut donc un vocabulaire de corpus avec des liens et un glossaire pour éviter la redondance, il faut une normalisation via transformation en minuscules et lemmatisation légère, pour éviter les redondances.
+
+ex : Réponds en une phrase et sans raisonnement. Donne-moi les mots clés de la question suivante, du plus discriminant au moins discriminant, pour une recherche RAG par mots clés : "Quels sont les composants de la forge MES DMP ?"
+
+bon résultat relativement aux expériences précédentes :
+Dans un contexte de systèmes informatiques, donne moi une réponse typique de 20 mots maximum correspondant à la question suivante, pour que je puisse identifier, à l'aide d'embeddings, des chunks correspondant à la question, pour implémenter un RAG. Voici la question : 'Quels sont les composants de la forge ?'"
+
+
+------------------------------------------------------------
+
 processer la recherche par headings, puis la merger
 
 compresser un document

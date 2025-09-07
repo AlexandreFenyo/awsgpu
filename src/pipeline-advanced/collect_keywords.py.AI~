@@ -1,0 +1,188 @@
+
+Je veux manipuler un fichier au format NDJSON qui contient des chunks créés pour un pipeline de RAG avec genAI.
+Voici un exemple d'un tel chunk :
+{
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "un titre", "h2": "un nom de section"},
+      "heading": {"h2": "un nom de section"},
+      "full_headings": "un titre; un nom de section",
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+}
+
+Le texte en français est lié à la clé "text" du JSON et les mots-clés sont dans le tableau lié à la clé "keywords" du JSON.
+
+Un mot-clé est un "noun phrase" (c'est à dire ce qu'on appelle un "NP" en linguistique), une entité nommée, ou des combinaisons 1–3 mots qui portent du sens (par ex. “modèle de langage”, “embeddings”, “détection d’anomalies”). Un mot clé a subi une normalisation via transformation en minuscules et lemmatisation légère, pour éviter les redondances.
+
+Fais un script python qui prend en entrée ce fichier au format NDJSON et qui le renvoie en sortie tel quel, en ayant simplement modifié le tableau de keywords en y remplaçant le contenu avec environ 6 à 8 keywords, que tu auras identifiés grace à la bibliothèque spaCy et un modèle pour la langue française.
+Le script propose de choisir en paramètre de ligne de commande entre le modèle fr_core_news_md et le modèle fr_core_news_lg.
+
+./src/pipeline-advanced/collect_keywords.py ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq > ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords
+
+(awsgpu-py3.13) fenyo@Mac-mini-de-Alexandre awsgpu % ./src/pipeline-advanced/collect_keywords.py --min 200 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq > ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords
+
+(awsgpu-py3.13) fenyo@Mac-mini-de-Alexandre awsgpu % grep -- -653 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq
+
+grep -- -653 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords | jq .keywords 
+
+(awsgpu-py3.13) fenyo@Mac-mini-de-Alexandre awsgpu % ./src/pipeline-advanced/collect_keywords.py --min 30 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq > ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords
+(awsgpu-py3.13) fenyo@Mac-mini-de-Alexandre awsgpu % grep -- -653 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords | jq .keywords                                                                                                 
+[
+  "outil",
+  "titulaire",
+  "choix",
+  "outil similaire",
+  "qualité",
+  "offre",
+  "niveau",
+  "disponibilité",
+  "performance",
+  "innovation",
+  "avantage",
+  "service",
+  "terme",
+  "cas",
+  "similaire",
+  "version",
+  "code",
+  "vulnérabilité",
+  "offre titulaire",
+  "fortify",
+  "source",
+  "disponibilité performance niveau",
+  "terme disponibilité performance",
+  "performance niveau qualité",
+  "qualité service innovation",
+  "innovation offre titulaire",
+  "choix terme disponibilité",
+  "outil similaire avantage",
+  "similaire avantage choix",
+  "service innovation offre"
+]
+(awsgpu-py3.13) fenyo@Mac-mini-de-Alexandre awsgpu % ./src/pipeline-advanced/collect_keywords.py -m lg --min 30 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq > ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords 
+
+avec l'autre modèle :
+(awsgpu-py3.13) fenyo@Mac-mini-de-Alexandre awsgpu % grep -- -653 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords | jq .keywords                                                                                                 
+[
+  "outil",
+  "titulaire",
+  "choix",
+  "outil similaire",
+  "qualité",
+  "niveau",
+  "disponibilité",
+  "performance",
+  "innovation",
+  "avantage",
+  "service",
+  "terme",
+  "cas",
+  "similaire",
+  "version",
+  "code",
+  "fortify",
+  "vulnérabilité",
+  "ansibl",
+  "disponibilité performance niveau",
+  "terme disponibilité performance",
+  "service innovation titulaire",
+  "performance niveau qualité",
+  "qualité service innovation",
+  "choix terme disponibilité",
+  "outil similaire avantage",
+  "similaire avantage choix",
+  "niveau qualité service",
+  "choix outil similaire",
+  "avantage choix terme"
+]
+
+(awsgpu-py3.13) fenyo@Mac-mini-de-Alexandre awsgpu % ./src/pipeline-advanced/collect_keywords.py -m lg --min 30 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq > ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords.lg
+(awsgpu-py3.13) fenyo@Mac-mini-de-Alexandre awsgpu % ./src/pipeline-advanced/collect_keywords.py -m md --min 30 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq > ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords.md
+
+les deux modèles à peu près pareils
+
+Avec GPT-5 c'est bien mieux :
+
+Extrais-moi 6 à 8 mots clés dans le texte suivant : "Pour chaque outil, l’acquisition des licences et autres éventuels abonnements et actifs nécessaires à son fonctionnement est réalisée par le Titulaire et reste à sa charge, sauf quand le contraire est expressément précisé.\n\nLa forge est construite autour d’un pipeline intégrant les outils suivants :\n\n- L’outil SCA nommé « OWASP Dependency Check », ou un outil similaire, permettant de détecter les vulnérabilités publiques connues et présentes dans les dépendances externes intégrées au code développé spécifiquement dans le projet. La base des vulnérabilités publiques utilisée par l’outil doit être mise à jour quotidiennement. Dans le cas du choix d’un outil similaire, les avantages apportés par ce choix, tant en terme de disponibilité, de performances, de niveau de qualité du service rendu et d’innovation sont précisés dans l’offre du Titulaire.\n- L’outil SonarQube d’analyse de la qualité du code et de la sécurité, ou un outil similaire. Dans le cas du choix d’un outil similaire, les avantages apportés par ce choix, tant en terme de disponibilité, de performances, de niveau de qualité du service rendu et d’innovation sont précisés dans l’offre du Titulaire.\n- L’outil de parcours statique de code source (« static scan ») en vue de détection de vulnérabilités, édité par la société Fortify. Les licences sont fournies par la Cnam.\n- L’outil Nexus LifeCycle IQ, qui alimente Fortify pour identifier les dépendances et leurs vulnérabilités.\n- L’outil d’analyse orientée sécurité d’images Docker nommé Trivy, ou un outil similaire. Dans le cas du choix d’un outil similaire, les avantages apportés par ce choix, tant en terme de disponibilité, de performances, de niveau de qualité du service rendu et d’innovation sont précisés dans l’offre du Titulaire.\n- L’outil de gestion de code source GitLab. La version, version CE (édition communautaire) ou de la version EE (entreprise), est précisée dans l’offre du Titulaire accompagné de l’argumentaire sur le choix de la version.\n- L’outil d’orchestration de pipelines CI/CD nommé Jenkins.\n- Le coffre-fort de gestions des secrets de Hashicorp.\n- L’outil Helm de déploiement de « charts » en environnement OpenShift.\n- L’outil Maven pour compiler et créer des archives à partir de sources Java.\n- L’outil Ansible pour enchaîner des « playbooks » de déploiement ou de mise à niveau de systèmes distants. Dans son offre, le Titulaire précise, dans son offre, s’il adjoint la console Tower associée à l’outil Ansible, et argumente son choix.\n- Le dépôt de binaires Nexus de Sonatype, ou un outil similaire. Dans le cas du choix d’un outil similaire, les avantages apportés par ce choix, tant en terme de disponibilité, de performances, de niveau de qualité du service rendu et d’innovation sont précisés dans l’offre du Titulaire.\n- L’outil Katalon d’automatisation de tests, ou un outil similaire. Dans le cas du choix d’un outil similaire, les avantages apportés par ce choix, tant en terme de disponibilité, de performances, de niveau de qualité du service rendu et d’innovation sont précisés dans l’offre du Titulaire."
+
+gpt-5 : Pipeline CI/CD, OWASP Dependency Check, SonarQube, Fortify, Nexus LifeCycle IQ, GitLab, Jenkins, HashiCorp Vault
+
+gpt-5-nano : OWASP Dependency Check, Fortify, SonarQube, Nexus LifeCycle IQ, Trivy, GitLab, Jenkins, Ansible
+
+gpt-oss:20b : **Mots clés extraits (8)**  
+- OWASP Dependency Check  
+- SonarQube  
+- Fortify  
+- Nexus LifeCycle IQ  
+- Trivy  
+- GitLab  
+- Jenkins  
+- HashiCorp Vault
+
+réflexion de gpt-oss:20b : ... Probably choose the most salient ones ...
+
+avec 18 mots et reasoning level high :
+**Mots‑clés (18 extraits)**  
+
+1. OWASP Dependency Check  
+2. SonarQube  
+3. Fortify  
+4. Nexus LifeCycle IQ  
+5. Trivy  
+6. GitLab  
+7. Jenkins  
+8. Hashicorp Vault  
+9. Helm  
+10. Maven  
+11. Ansible  
+12. Tower (Ansible Tower)  
+13. Nexus Repository (Sonatype)  
+14. Katalon  
+15. Licences  
+16. Pipeline CI/CD  
+17. Vulnérabilités publiques  
+18. OpenShift
+
+avec 18 mots et reasoning low : SCA, OWASP Dependency Check, SonarQube, Fortify, Nexus Lifecycle IQ, Trivy, GitLab CE/EE, Jenkins, HashiCorp Vault, Helm, OpenShift, Maven, Ansible, Ansible Tower, Nexus Repository, Katalon, licences, vulnérabilités, dépendances, pipeline CI/CD.
+
+Extrais-moi 16 à 18 mots clés dans le texte suivant : Des services adaptés à la très large majorité du parc (desktop et mobile, OS et navigateurs) français, néanmoins dans le respect des niveaux de sécurité requis.\n- Le niveau de compatibilité est défini et revu régulièrement en fonction de l’évolution des recommandations constructeurs et éditeurs pour satisfaire aux exigences de sécurité de Mon espace santé et de compatibilité avec les outils de conception de Mon espace santé.\n- Des services s’appuyant sur les fonctionnalités natives du support sur lequel il est utilisé (ex. : géolocalisation, appareil photo, lecteurs biométriques d’identité, etc.) et sur les innovations technologiques venant régulièrement compléter l’état de l’art dans le domaine des services numériques (IoT via le catalogue des applications, IA, réalité augmentée, etc.).\n- Des interfaces utilisateurs qui bénéficient du Design System « Mon Espace Santé » pour homogénéiser et accélérer le développement et la validation des interfaces :\n- Un référentiel design, qui référence les composants utilisables et les règles applicables au design : règles d’usage, utilisation de la charte graphique (couleurs, illustrations, icônes, comportement, etc.)\n- Un ensemble de composants « sur étagère » qui facilitent la mise en place de contrôles, d’auto complétion, de balises d’accessibilité, etc.\n- Des services garantissant la transparence sur les traitements opérés (traces des opérations, transparence sur les algorithmes de personnalisation, etc.)\n- Des services sécurisés à l’état de l’art.
+
+
+
+
+OWASP Dependency Check  
+SonarQube  
+Fortify  
+Nexus LifeCycle IQ  
+Trivy  
+GitLab  
+Jenkins  
+Hashicorp Vault  
+Helm  
+Maven  
+Ansible  
+Tower (Ansible Tower)  
+Nexus Repository (Sonatype)  
+Katalon  
+Licences  
+Pipeline CI/CD  
+Vulnérabilités publiques  
+OpenShift
+Compatibilité desktop / mobile
+Sécurité requise
+Niveau de sécurité
+Conformité aux recommandations constructeur
+Mon Espace Santé
+Géolocalisation
+Appareil photo
+Lecteurs biométriques
+IoT
+IA
+Réalité augmentée
+Design System
+Référentiel design
+Charte graphique
+Composants « sur étagère »
+Accessibilité
+Transparence algorithmiques

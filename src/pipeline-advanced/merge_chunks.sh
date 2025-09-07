@@ -56,7 +56,7 @@ if (( OPENAI_LLM )); then
 
 else
 
-    jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-oss:120b", "messages": [{"role": "user", "content": $content}]}' > "$PREFIX.req"
+    jq -nc --arg content "$PROMPT_CONTENT" '{"model": "gpt-oss:20b", "messages": [{"role": "user", "content": $content}]}' > "$PREFIX.req"
     if (( DRY_RUN )); then
 	cat "$PREFIX.req"
 	exit 0

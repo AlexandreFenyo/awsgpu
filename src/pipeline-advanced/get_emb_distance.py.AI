@@ -1,0 +1,7 @@
+
+Crée un script python qui prend en paramètres deux chaînes de caractères, qui calcule leurs embeddings et en déduit leur distance, en utilisant la même distance que celle calculée par le script search_chunks.py.
+Use sentence-transformers with the 'paraphrase-xlm-r-multilingual-v1' model.
+
+------------------------------------------------------------
+
+Ajoute une option pour pouvoir changer de modèle et utiliser l'un des modèles suivants : Multilingual E5 (intfloat/multilingual-e5-large — 1024‑dim), bge‑multilingual‑gemma2, sentence‑transformers/sentence-t5-xl, sentence-transformers/all-mpnet-base-v2
