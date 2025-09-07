@@ -55,7 +55,7 @@ def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chu
         results = coll.query.bm25(
             query=query,
             limit=limit,
-            properties=["text"],
+            query_properties=["text"],
             return_properties=[
                 "chunk_id",
                 "text",
