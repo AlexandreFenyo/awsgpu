@@ -3,14 +3,15 @@
 Search nearest chunks in Weaviate using a text query.
 
 - Connects to a local Weaviate instance (gRPC + REST).
-- Embeds the input text query with sentence-transformers
-  ('paraphrase-xlm-r-multilingual-v1').
+- Embeds the input text query with sentence-transformers ('paraphrase-xlm-r-multilingual-v1') by default.
+- If --openai is provided, uses OpenAI 'text-embedding-3-large' (requires env OPENAIAPIKEY).
 - Runs a vector search against the stored embeddings (vectorizer = none).
 - Prints results to stdout, one JSON object per line.
 
 Usage:
   ./src/pipeline-advanced/search_chunks.py "your query text"
   ./src/pipeline-advanced/search_chunks.py -k 25 -c rag_chunks "contrat de maintenance"
+  ./src/pipeline-advanced/search_chunks.py --openai "votre question"
 
 Each result line includes:
   { chunk_id, text, distance, approx_tokens, keywords, headings, heading, full_headings, created_at }
@@ -50,7 +51,19 @@ def _connect_local():
         return weaviate.connect_to_local()
 
     
-def _embed_query(text: str) -> List[float]:
+def _embed_query(text: str, use_openai: bool = False) -> List[float]:
+    if use_openai:
+        api_key = os.environ.get("OPENAIAPIKEY")
+        if not api_key:
+            raise RuntimeError("OPENAIAPIKEY environment variable is not set.")
+        try:
+            from openai import OpenAI
+        except Exception:
+            print("Error: openai package is required for --openai. Install with: pip install openai", file=sys.stderr)
+            raise
+        client = OpenAI(api_key=api_key)
+        resp = client.embeddings.create(model="text-embedding-3-large", input=text)
+        return [float(x) for x in resp.data[0].embedding]
     model = SentenceTransformer(_MODEL_NAME)
     vec = model.encode([text], convert_to_numpy=True, show_progress_bar=False)
     if isinstance(vec, list):
@@ -62,8 +75,8 @@ def _embed_query(text: str) -> List[float]:
     return emb
 
 
-def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chunks") -> List[Dict[str, Any]]:
-    vector = _embed_query(query)
+def search_weaviate(query: str, limit: int = 50, collection_name: str = "rag_chunks", use_openai: bool = False) -> List[Dict[str, Any]]:
+    vector = _embed_query(query, use_openai=use_openai)
 
     client = _connect_local()
     try:
@@ -123,10 +136,15 @@ def main(argv: List[str] | None = None) -> int:
         default="rag_chunks",
         help='Weaviate collection name to query (default: "rag_chunks")',
     )
+    parser.add_argument(
+        "--openai",
+        action="store_true",
+        help="Use OpenAI embeddings (text-embedding-3-large) for the query; requires env OPENAIAPIKEY",
+    )
     args = parser.parse_args(argv)
 
     try:
-        results = search_weaviate(args.query, limit=args.limit, collection_name=args.collection_name)
+        results = search_weaviate(args.query, limit=args.limit, collection_name=args.collection_name, use_openai=args.openai)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
