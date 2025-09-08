@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import hashlib
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +41,7 @@ from sentence_transformers import SentenceTransformer
 
 
 _MODEL_NAME = "paraphrase-xlm-r-multilingual-v1"
+_OPENAI_MODEL_NAME = "text-embedding-3-large"
 _BATCH_SIZE = 64
 
 
@@ -66,10 +68,11 @@ def _extract_meta(chunk: Dict) -> tuple[List[str], Dict[str, str], Dict[str, str
     return keywords, headings, heading, full_headings
 
 
-def convert_chunks_to_embeddings(input_path: str) -> str:
+def convert_chunks_to_embeddings(input_path: str, use_openai: bool = False) -> str:
     """
     Read chunks JSONL and write embeddings NDJSON to <input>.embeddings.ndjson.
     Returns the output file path as a string.
+    If use_openai is True, embeddings are computed via OpenAI API (model: text-embedding-3-large).
     """
     src = Path(input_path)
     if not src.exists():
@@ -77,17 +80,36 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
 
     out_path = Path(f"{input_path}.embeddings.ndjson")
 
-    model = SentenceTransformer(_MODEL_NAME)
+    # Initialize encoder or OpenAI client based on mode
+    local_model: Optional[SentenceTransformer] = None
+    client = None
+    if not use_openai:
+        local_model = SentenceTransformer(_MODEL_NAME)
 
     created_at = _iso_utc_now()
+    if use_openai:
+        try:
+            import openai as _openai_pkg  # lazy import to avoid dependency when not used
+            from openai import OpenAI as _OpenAI
+        except Exception as e:
+            raise RuntimeError("OpenAI package not installed. Install with: pip install openai") from e
+        api_key = os.environ.get("OPENAIAPIKEY")
+        if not api_key:
+            raise RuntimeError("Environment variable OPENAIAPIKEY is not set.")
+        client = _OpenAI(api_key=api_key)
+        model_name = _OPENAI_MODEL_NAME
+        model_version = getattr(_openai_pkg, "__version__", "unknown")
+    else:
+        model_name = _MODEL_NAME
+        model_version = getattr(sentence_transformers, "__version__", "unknown")
     model_info = {
-        "name": _MODEL_NAME,
-        "version": getattr(sentence_transformers, "__version__", "unknown"),
+        "name": model_name,
+        "version": model_version,
     }
 
     # Simple on-disk cache for embeddings to avoid recomputation across runs.
     # One cache file per input and model name.
-    cache_path = Path(f"{input_path}.{_MODEL_NAME}.emb_cache.jsonl")
+    cache_path = Path(f"{input_path}.{model_name}.emb_cache.jsonl")
     emb_cache: Dict[str, List[float]] = {}
 
     def _cache_key(text: str) -> str:
@@ -95,7 +117,7 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
         Build a stable key for the given text, including model name and version to avoid collisions.
         """
         ver = model_info.get("version", "unknown")
-        payload = f"{_MODEL_NAME}\n{ver}\n".encode("utf-8") + (text if isinstance(text, bytes) else str(text)).encode("utf-8")
+        payload = f"{model_name}\n{ver}\n".encode("utf-8") + (text if isinstance(text, bytes) else str(text)).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
 
     # Load existing cache entries
@@ -137,18 +159,22 @@ def convert_chunks_to_embeddings(input_path: str) -> str:
             to_compute_texts = [texts[i] for i in to_compute_idx]
             for t in to_compute_texts:
                 print(f"computing embedding for: {t}")
-            computed = model.encode(
-                to_compute_texts,
-                batch_size=min(_BATCH_SIZE, len(to_compute_texts)),
-                convert_to_numpy=True,
-                show_progress_bar=False,
-            )
-            if isinstance(computed, np.ndarray):
-                computed_list: List[List[float]] = computed.astype(float).tolist()
-            elif isinstance(computed, list):
-                computed_list = [list(map(float, e)) for e in computed]
+            if use_openai:
+                resp = client.embeddings.create(model=model_name, input=to_compute_texts)
+                computed_list = [list(map(float, d.embedding)) for d in resp.data]
             else:
-                computed_list = [list(map(float, np.array(computed).astype(float).tolist()))]
+                computed = local_model.encode(
+                    to_compute_texts,
+                    batch_size=min(_BATCH_SIZE, len(to_compute_texts)),
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
+                )
+                if isinstance(computed, np.ndarray):
+                    computed_list: List[List[float]] = computed.astype(float).tolist()
+                elif isinstance(computed, list):
+                    computed_list = [list(map(float, e)) for e in computed]
+                else:
+                    computed_list = [list(map(float, np.array(computed).astype(float).tolist()))]
 
             new_cache_items: List[tuple[str, List[float]]] = []
             for pos, vec in zip(to_compute_idx, computed_list):
@@ -222,10 +248,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         "input",
         help="Path to the input chunks file (JSONL)",
     )
+    parser.add_argument(
+        "-openai",
+        "--openai",
+        action="store_true",
+        help="Use OpenAI API (model: text-embedding-3-large) instead of local sentence-transformers.",
+    )
     args = parser.parse_args(argv)
 
     try:
-        produced = convert_chunks_to_embeddings(args.input)
+        produced = convert_chunks_to_embeddings(args.input, use_openai=args.openai)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
