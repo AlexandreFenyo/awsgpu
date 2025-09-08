@@ -21,11 +21,13 @@ Collect all possible French keywords from NDJSON RAG chunks using spaCy.
   - Markdown emphasis: *…*, **…**, _…_, __…__
 - Normalization: lowercase + light lemmatization; deduplicated globally.
 
-- Output: all discovered keywords (unique), one per line to stdout,
-  sorted by descending frequency across all chunks, then by length.
+- Output: all discovered keywords (unique), one per line to stdout.
+  By default they are sorted by descending frequency across all chunks, then by length.
+  Use --order specificity to sort by the extractor's specificity score instead.
 
 Usage:
   ./src/pipeline-advanced/collect_keywords_from_md.py input.ndjson
+  ./src/pipeline-advanced/collect_keywords_from_md.py --order specificity input.ndjson
 """
 
 from __future__ import annotations
@@ -35,7 +37,7 @@ import json
 import re
 import sys
 from collections import Counter
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 
 # ----------------------------- Helpers & normalization -----------------------------
@@ -107,9 +109,10 @@ def _extract_quoted_or_markdown_names(text: str, nlp) -> List[str]:
 # ----------------------------- Keyword extraction -----------------------------
 
 
-def extract_all_keywords_spacy(text: str, nlp) -> List[str]:
+def extract_all_keywords_spacy(text: str, nlp, return_scores: bool = False) -> List[str] | List[Tuple[str, float]]:
     """
     Extract as many French keyphrases as possible from text using spaCy.
+    If return_scores is True, return a list of (phrase, score) sorted by score desc.
     """
     if not text or not text.strip():
         return []
@@ -169,6 +172,8 @@ def extract_all_keywords_spacy(text: str, nlp) -> List[str]:
         scored.append((phrase, float(count) + length_boost))
 
     scored.sort(key=lambda x: (x[1], len(x[0])), reverse=True)
+    if return_scores:
+        return scored
     return [p for p, _ in scored]
 
 
@@ -200,6 +205,12 @@ def main(argv: List[str] | None = None) -> int:
         choices=["md", "lg", "fr_core_news_md", "fr_core_news_lg"],
         help="spaCy French model to use (default: lg = fr_core_news_lg).",
     )
+    parser.add_argument(
+        "--order",
+        choices=["freq", "specificity"],
+        default="freq",
+        help="Output order: 'freq' (default, global frequency across chunks) or 'specificity' (highest-scoring phrases first).",
+    )
     args = parser.parse_args(argv)
 
     model_name = _resolve_model_name(args.model)
@@ -228,6 +239,7 @@ def main(argv: List[str] | None = None) -> int:
 
     # Aggregate across all chunks
     global_counter: Counter[str] = Counter()
+    best_scores: Dict[str, float] = {}
     processed = 0
     errors = 0
 
@@ -246,8 +258,16 @@ def main(argv: List[str] | None = None) -> int:
             if not text.strip():
                 continue
 
-            kws = extract_all_keywords_spacy(text, nlp)
-            global_counter.update(kws)
+            if args.order == "freq":
+                kws = extract_all_keywords_spacy(text, nlp)
+                global_counter.update(kws)
+            else:
+                # specificity mode: keep the best (highest) score seen per phrase
+                scored = extract_all_keywords_spacy(text, nlp, return_scores=True)  # type: ignore[assignment]
+                for phrase, score in scored:  # type: ignore[misc]
+                    prev = best_scores.get(phrase)
+                    if prev is None or score > prev:
+                        best_scores[phrase] = float(score)
             processed += 1
     finally:
         inf.close()
@@ -255,14 +275,25 @@ def main(argv: List[str] | None = None) -> int:
     if processed == 0:
         return 1
 
-    # Output unique keywords, one per line, sorted by freq desc then length
-    items: List[Tuple[str, float]] = sorted(
-        global_counter.items(),
-        key=lambda x: (x[1], len(x[0])),
-        reverse=True,
-    )
-    for phrase, _ in items:
-        print(phrase)
+    # Output unique keywords, one per line
+    if args.order == "freq":
+        # Sorted by global frequency desc then length
+        items: List[Tuple[str, float]] = sorted(
+            global_counter.items(),
+            key=lambda x: (x[1], len(x[0])),
+            reverse=True,
+        )
+        for phrase, _ in items:
+            print(phrase)
+    else:
+        # Sorted by specificity score desc then length
+        items: List[Tuple[str, float]] = sorted(
+            best_scores.items(),
+            key=lambda x: (x[1], len(x[0])),
+            reverse=True,
+        )
+        for phrase, _ in items:
+            print(phrase)
 
     # Exit 0 even if there were a few malformed lines, as long as we produced output
     return 0
