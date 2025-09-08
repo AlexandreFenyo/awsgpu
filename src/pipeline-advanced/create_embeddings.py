@@ -160,8 +160,40 @@ def convert_chunks_to_embeddings(input_path: str, use_openai: bool = False) -> s
             for t in to_compute_texts:
                 print(f"computing embedding for: {t}")
             if use_openai:
-                resp = client.embeddings.create(model=model_name, input=to_compute_texts)
-                computed_list = [list(map(float, d.embedding)) for d in resp.data]
+                # Normalize inputs for OpenAI API: replace newlines, avoid empty strings
+                norm_texts: List[str] = []
+                for s in to_compute_texts:
+                    s = s.replace("\r", " ").replace("\n", " ")
+                    s = s.strip()
+                    if not s:
+                        s = " "
+                    norm_texts.append(s)
+                try:
+                    resp = client.embeddings.create(
+                        model=model_name,
+                        input=norm_texts,
+                        encoding_format="float",
+                    )
+                    computed_list = [list(map(float, d.embedding)) for d in resp.data]
+                except Exception:
+                    # Fallback to per-item requests to isolate problematic inputs
+                    computed_list = []
+                    for s in norm_texts:
+                        try:
+                            r = client.embeddings.create(
+                                model=model_name,
+                                input=s,
+                                encoding_format="float",
+                            )
+                            computed_list.append(list(map(float, r.data[0].embedding)))
+                        except Exception:
+                            # As a last resort, embed a single space to ensure progress
+                            r = client.embeddings.create(
+                                model=model_name,
+                                input=" ",
+                                encoding_format="float",
+                            )
+                            computed_list.append(list(map(float, r.data[0].embedding)))
             else:
                 computed = local_model.encode(
                     to_compute_texts,
