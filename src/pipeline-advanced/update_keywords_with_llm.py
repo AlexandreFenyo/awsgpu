@@ -63,6 +63,11 @@ def _ollama_generate(base_url: str, prompt: str, model: str = MODEL_NAME, tries:
     last_err: Exception | None = None
     for attempt in range(1, tries + 1):
         try:
+            try:
+                sys.stderr.write(f"voici la requête: {prompt}\n")
+            except Exception:
+                # Best-effort logging; avoid crashing on encoding issues
+                sys.stderr.write("voici la requête: [unprintable]\n")
             req = request.Request(url, data=data, headers=headers, method="POST")
             with request.urlopen(req, timeout=timeout) as resp:
                 charset = resp.headers.get_content_charset() or "utf-8"
