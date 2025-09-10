@@ -9,6 +9,7 @@ the extracted list, and writes the updated NDJSON to stdout.
 - The model used is "gpt-oss:20b".
 - The prompt is exactly: "Fournis 20 mot-clés à partir du texte suivant: " + text
 - The input source file is not modified; output is printed to stdout.
+- If the "text" field is empty or only whitespace, no request is made to Ollama and "keywords" is set to [].
 
 Usage:
   python3 src/pipeline-advanced/update_keywords_with_llm.py path/to/input.ndjson > output.ndjson
@@ -173,6 +174,11 @@ def _process_obj(obj: dict, base_url: str) -> dict:
     text = obj.get("text", "")
     if not isinstance(text, str):
         text = str(text)
+
+    # If text is empty or whitespace, do not call Ollama; set empty keywords.
+    if not text.strip():
+        obj["keywords"] = []
+        return obj
 
     prompt = _build_prompt(text)
     resp = _ollama_generate(base_url, prompt)
