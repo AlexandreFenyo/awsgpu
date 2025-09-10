@@ -69,7 +69,13 @@ def _ollama_generate(base_url: str, prompt: str, model: str = MODEL_NAME, tries:
                 raw = resp.read().decode(charset, errors="replace")
                 obj = json.loads(raw)
                 # Expected: {"model": "...", "created_at": "...", "response": "...", ...}
-                return t.cast(str, obj.get("response", "")) or ""
+                response_text = t.cast(str, obj.get("response", "")) or ""
+                try:
+                    sys.stderr.write(f"voici la réponse d'ollama: {response_text}\n")
+                except Exception:
+                    # Best-effort logging; avoid crashing on encoding issues
+                    sys.stderr.write("voici la réponse d'ollama: [unprintable]\n")
+                return response_text
         except (error.HTTPError, error.URLError, TimeoutError, json.JSONDecodeError) as e:
             last_err = e
             if attempt < tries:
