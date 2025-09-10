@@ -7,7 +7,7 @@ the extracted list, and writes the updated NDJSON to stdout.
 
 - Ollama host is taken from the environment variable OLLAMA_HOST (hostname or IP).
 - The model used is "gpt-oss:20b".
-- The prompt is exactly: "Fournis 20 mot-clés à partir du texte suivante: " + text
+- The prompt is exactly: "Fournis 20 mot-clés à partir du texte suivant: " + text
 - The input source file is not modified; output is printed to stdout.
 
 Usage:
@@ -166,7 +166,7 @@ def _extract_keywords_from_response(resp_text: str, max_keywords: int = 20) -> t
 
 
 def _build_prompt(text: str) -> str:
-    return f"Fournis 20 mot-clés à partir du texte suivante: {text}"
+    return f"Fournis 20 mot-clés, chacun composé d'au plus trois mots, à partir du texte suivant: {text}"
 
 
 def _process_obj(obj: dict, base_url: str) -> dict:
