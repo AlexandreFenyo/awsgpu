@@ -101,15 +101,31 @@ _label_prefix_re = re.compile(r"(?i)^\s*(?:mots?-?\s*clés?|keywords?)\s*:\s*")
 def _try_parse_json_array(text: str) -> t.Optional[t.List[str]]:
     """
     Parse the response as a JSON array string of keywords.
-    Only accepts responses that are exactly a JSON array (ignoring surrounding whitespace).
+
+    Ignores any content before the first '[' and after the last ']'
+    when trying to extract the JSON array.
     """
     text = text.strip()
+    # First, try direct parse (fast path).
     try:
         arr = json.loads(text)
         if isinstance(arr, list):
             return [str(x) for x in arr]
     except json.JSONDecodeError:
         pass
+
+    # Then, try to extract the first [...] block from the response.
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end != -1 and end > start:
+        candidate = text[start : end + 1]
+        try:
+            arr = json.loads(candidate)
+            if isinstance(arr, list):
+                return [str(x) for x in arr]
+        except json.JSONDecodeError:
+            pass
+
     return None
 
 
