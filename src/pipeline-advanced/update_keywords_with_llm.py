@@ -46,7 +46,7 @@ def _compute_base_url() -> str:
     return base.rstrip("/")
 
 
-def _ollama_generate(base_url: str, prompt: str, model: str = MODEL_NAME, tries: int = 3, timeout: int = 60) -> str:
+def _ollama_generate(base_url: str, prompt: str, model: str = MODEL_NAME, tries: int = 3, timeout: int = 300) -> str:
     """
     Call Ollama /api/generate with stream=false and return the 'response' text.
     Retries with exponential backoff on temporary failures.
@@ -159,7 +159,7 @@ def _extract_keywords_from_response(resp_text: str, max_keywords: int = 20) -> t
 
 
 def _build_prompt(text: str) -> str:
-    return f"Fournis 20 mot-clés, chacun composé d'au plus trois mots, à partir du texte suivant: {text}"
+    return f"Fournis 20 mot-clés, chacun au format 'chaîne de caractères d'un tableau JSON', extraits du texte suivant, chacun étant composé de un à trois mots qui se suivent dans ce texte, sans modification, et s'il y a un article au début de ces trois mots, ne l'affiche pas : {text}"
 
 
 def _process_obj(obj: dict, base_url: str) -> dict:
