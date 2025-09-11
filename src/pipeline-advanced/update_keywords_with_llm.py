@@ -100,31 +100,16 @@ _label_prefix_re = re.compile(r"(?i)^\s*(?:mots?-?\s*clés?|keywords?)\s*:\s*")
 
 def _try_parse_json_array(text: str) -> t.Optional[t.List[str]]:
     """
-    Try to parse a JSON array of strings from the response text.
-    If the response contains [...] somewhere, try to parse that substring.
+    Parse the response as a JSON array string of keywords.
+    Only accepts responses that are exactly a JSON array (ignoring surrounding whitespace).
     """
     text = text.strip()
-    # Direct array
-    if text.startswith("[") and text.endswith("]"):
-        try:
-            arr = json.loads(text)
-            if isinstance(arr, list):
-                return [str(x) for x in arr]
-        except json.JSONDecodeError:
-            pass
-
-    # Find first [...] block
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end != -1 and end > start:
-        candidate = text[start : end + 1]
-        try:
-            arr = json.loads(candidate)
-            if isinstance(arr, list):
-                return [str(x) for x in arr]
-        except json.JSONDecodeError:
-            pass
-
+    try:
+        arr = json.loads(text)
+        if isinstance(arr, list):
+            return [str(x) for x in arr]
+    except json.JSONDecodeError:
+        pass
     return None
 
 
@@ -143,7 +128,7 @@ def _normalize_keyword(s: str) -> str:
 
 def _extract_keywords_from_response(resp_text: str, max_keywords: int = 20) -> t.List[str]:
     """
-    Robustly turn an LLM response into a list of up to max_keywords strings.
+    Parse the LLM response strictly as a JSON array string into up to max_keywords keywords.
     """
     if not resp_text:
         return []
@@ -153,12 +138,8 @@ def _extract_keywords_from_response(resp_text: str, max_keywords: int = 20) -> t
     if arr is not None:
         items = arr
     else:
-        # 2) Try comma-separated list
-        if "," in resp_text:
-            items = resp_text.split(",")
-        else:
-            # 3) Fallback: split lines
-            items = resp_text.splitlines()
+        # Not a JSON array; return empty list
+        items = []
 
     cleaned: t.List[str] = []
     seen: set[str] = set()
