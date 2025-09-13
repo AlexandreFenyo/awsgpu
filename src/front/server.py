@@ -119,8 +119,8 @@ def parse_args():
         "--host",
         "--bind",
         dest="host",
-        default=os.getenv("HOST", "127.0.0.1"),
-        help='Adresse d\'écoute (défaut: "127.0.0.1", utiliser "0.0.0.0" pour toutes les interfaces).',
+        default=os.getenv("HOST", "0.0.0.0"),
+        help='Adresse d\'écoute (défaut: "0.0.0.0", utiliser "0.0.0.0" pour toutes les interfaces).',
     )
     parser.add_argument(
         "-v",
