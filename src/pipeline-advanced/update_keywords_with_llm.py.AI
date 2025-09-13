@@ -1,0 +1,45 @@
+
+Je veux manipuler un fichier au format NDJSON qui contient des chunks créés pour un pipeline de RAG avec genAI.
+Voici un exemple d'un tel chunk :
+{
+      "chunk_id": "...",
+      "text": "...",
+      "headings": {"h1": "un titre", "h2": "un nom de section"},
+      "heading": {"h2": "un nom de section"},
+      "full_headings": "un titre; un nom de section",
+      "keywords": ["...", ...],
+      "approx_tokens": 123
+}
+
+Chaque chunk est composé d'un texte qui est lié à la clé "text" du JSON. Je veux que tu renvoies tous ces chunks en y mettant des mot-clés associés à ce texte.
+
+Pour cela, invoque en web services le serveur ollama, qui est hébergé sur l'hôte dont le nom ou l'IP est dans la variable d'environnement OLLAMA_HOST, afin qu'il utilise le modèle gpt-oss:20b, pour extraire 20 mots clés à partir du contenu du champ "text" via le prompt correspondant à la concaténation de la chaîne "Fournis 20 mot-clés à partir du texte suivante: " et du contenu associé à la clé "text", et mets ces mot-clés dans le tableau associé à la clé "keywords" du chunk en ayant au préalable effacé le contenu des keywords qui auraient pu s'y trouver.
+Boucle ainsi sur chaque ligne du fichier NDJSON jusqu'à avoir parcouru toutes les lignes.
+Affiche le fichier ainsi modifié sur la sortie standard, ne touche pas au fichier source.
+
+------------------------------------------------------------
+
+Si le texte associé à la clé "text" est vide, alors contente-toi de considérer qu'il n'y a aucun mot clé, n'interroge pas ollama, mets simplement une liste vide dans le tableau des mots clés.
+
+------------------------------------------------------------
+
+ex d'utilisation :
+export OLLAMA_HOST=192.168.0.21
+head -2 ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq > /tmp/res
+./src/pipeline-advanced/update_keywords_with_llm.py /tmp/res                            
+
+ou :
+export OLLAMA_HOST=192.168.0.21
+./src/pipeline-advanced/update_keywords_with_llm.py ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq > ../awsgpu-docs/collection/CCTP_af.docx.html.md.converted.md.chunks.jq.keywords.jq
+
+------------------------------------------------------------
+
+santé de chacun – dans sa vie personnelle ou professionnelle – en agissant auprès de tous. C’est sa raison d’être. Concrètement, elle accompagne 60 millions d’assurés tout au long de leur vie, en prenant en charge leurs soins quels que soient leurs ressources, leur situation ou leur état de santé.\n\nElle garantit ainsi un accès universel aux droits et elle permet l’accès aux soins.\n\nElle fait également bien plus : elle agit en amont de la maladie et de ses complications, avec une offre de prévention sans cesse enrichie. Dans le milieu professionnel aussi, elle renforce ses dispositifs pour protéger les salariés les plus exposés ou les plus fragiles.\n\nElle joue par ailleurs un rôle de régulateur du système de santé, cherchant en permanence à concilier la meilleure qualité des soins et le meilleur coût, à travers ses analyses, ses propositions et son action sur le terrain. Pour améliorer l’efficacité du système, elle travaille main dans la main avec les professionnels et les établissements de santé, les entreprises et tous les acteurs concernés.", "headings": {"h1": "2 Présentation de l’Assurance Maladie et du Numérique en Santé", "h2": "2.1 Présentation générale de l’Assurance Maladie", "h3": "2.1.1 Les missions de l’Assurance Maladie"}, "heading": {"h3": "2.1.1 Les missions de l’Assurance Maladie"}, "full_headings": "2 Présentation de l’Assurance Maladie et du Numérique en Santé; 2.1 Présentation générale de l’Assurance Maladie; 2.1.1 Les missions de l’Assurance Maladie", "keywords": ["Assurance Maladie", "Protection santé", "Vie personnelle", "Vie professionnelle", "Accompagnement assurés", "60 millions d’assurés", "Prise en charge soins", "Accès universel", "Droits santé", "Accès soins", "Prévention maladie", "Complications santé", "Milieu professionnel", "Salariés exposés", "Salariés fragiles", "Régulateur système", "Qualité soins", "Coût santé", "Collaboration acteurs", "Efficacité système"], "approx_tokens": 178}
+
+------------------------------------------------------------
+
+Avant de faire une requête auprès d'ollama, affiche le texte de la requête sur l'erreur standard, précédé de "voici la requête: ".Les réponses sont fournies par ollama au format "chaîne de caractères d'un tableau JSON". Supprime du script les autres façons de parser la sortie. 
+
+------------------------------------------------------------
+
+Ignore dans la réponse d'Ollama tout ce qu'il y a avant le premier crochet délimitant le début du tableau, et ce qu'il y a après le dernier crochet délimitant la fin du tableau.

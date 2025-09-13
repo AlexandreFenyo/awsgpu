@@ -51,3 +51,8 @@ src/pipeline-advanced/create_embeddings.py src/pipeline-advanced/search_chunks.p
 
 En plus des propriétés comme chunk_id, text, headings, etc., fait en sorte de traiter les propriétés full_headings et heading, quand elles ne le sont pas.
 Ces propriétés, au même niveau que chunk_id, text et headings, par ex., doivent être consommées et produites systématiquement.
+
+------------------------------------------------------------
+
+Modifie ce script pour que, dans le cas où on fournit l'option "--openai", alors les embeddings de la question ne sont plus fabriqués en local avec le modèle 'paraphrase-xlm-r-multilingual-v1', mais plutôt en s'appuyant sur le modèle d'OpenAI text-embedding-3-large.
+La clé d'API pour accéder à OpenAI est dans la variable d'environnement OPENAIAPIKEY.

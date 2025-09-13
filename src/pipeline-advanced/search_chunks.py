@@ -39,6 +39,7 @@ except Exception as exc:
 
 
 _MODEL_NAME = "paraphrase-xlm-r-multilingual-v1"
+#_MODEL_NAME = "all-mpnet-base-v2"
 
 
 def _connect_local():

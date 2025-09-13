@@ -1,0 +1,5 @@
+
+Crée un script Python qui prend en paramètres deux chaînes de caractères, qui calcule leurs embeddings et en déduit leur distance, en utilisant la même distance que celle calculée par le script search_chunks.py.
+Mais n'utilise pas le modèle 'paraphrase-xlm-r-multilingual-v1', appuie-toi plutôt sur les modèles d'OpenAI text-embedding-3-small et text-embedding-3-large.
+La clé d'API pour accéder à OpenAI est dans la variable d'environnement OPENAIAPIKEY.
+Mets une option de ligne de commande pour choisir parmi ces deux modèles.

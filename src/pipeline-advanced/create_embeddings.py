@@ -41,6 +41,8 @@ from sentence_transformers import SentenceTransformer
 
 
 _MODEL_NAME = "paraphrase-xlm-r-multilingual-v1"
+#_MODEL_NAME = "all-mpnet-base-v2"
+
 _OPENAI_MODEL_NAME = "text-embedding-3-large"
 _BATCH_SIZE = 64
 

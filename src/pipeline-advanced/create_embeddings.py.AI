@@ -77,3 +77,7 @@ Modifie le format ndjson de sortie pour ne plus traiter la demande suivante : qu
 Il ne faut donc plus les calculer ni les mettre dans le fichier de sortie. En effet, ça ne sert à rien dans le traitement global.
 
 ------------------------------------------------------------
+
+Modifie le script pour que, lorsqu'il est lancé avec l'option "-openai", il ne calcule pas lui-même les embeddings avec sentence-transformer et un modèle local mais qu'il interroge l'API d'OpenAI, en utilisant le modèle d'OpenAI nommé text-embedding-3-large.
+La clé d'API pour accéder à OpenAI est dans la variable d'environnement OPENAIAPIKEY.
+
