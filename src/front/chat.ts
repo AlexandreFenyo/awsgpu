@@ -55,7 +55,7 @@ function MessageView({ msg, userName }: { msg: Msg; userName: string }) {
     h(
       "div",
       { className: "avatar", title: msg.role === "user" ? (userName || "Vous") : "Assistant" },
-      msg.role === "user" ? (userName || "VO") : "MES"
+      msg.role === "user" ? (userName || "VO") : h("img", { src: "/MES/favicon.png", alt: "Assistant" })
     ),
     h(
       "div",

@@ -133,6 +133,14 @@ a { color: var(--accent); }
   background: #334155;
 }
 
+.message .avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: block;
+  object-fit: cover;
+}
+
 .message .bubble {
   display: inline-block;
   padding: 12px 14px;
