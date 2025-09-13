@@ -12,6 +12,8 @@ type Msg = {
 
 const h = React.createElement;
 
+const API_URL = "/api/chat";
+
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -76,14 +78,18 @@ function Header() {
 async function sendToApi(history: Msg[]): Promise<string> {
   // Essaie un endpoint standard JSON: { messages: [{role, content}, ...] } -> { reply: string }
   try {
-    const res = await fetch("/api/chat", {
+    const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: history.map(({ role, content }) => ({ role, content })),
       }),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const e = new Error(`HTTP ${res.status} ${res.statusText}`);
+      (e as any).url = API_URL;
+      throw e;
+    }
     // Accepte plusieurs formats courants
     const textCT = res.headers.get("content-type") || "";
     if (textCT.includes("application/json")) {
@@ -98,12 +104,10 @@ async function sendToApi(history: Msg[]): Promise<string> {
     } else {
       return await res.text();
     }
-  } catch (_err) {
-    // Fallback simulé pour une démo offline
-    const last = history.filter(m => m.role === "user").slice(-1)[0];
-    const echo = last?.content ?? "Bonjour";
-    await new Promise(r => setTimeout(r, 650));
-    return `Je n’ai pas pu contacter le serveur.\nRéponse simulée: "${echo}"`;
+  } catch (err: any) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    (e as any).url = (e as any).url || API_URL;
+    throw e;
   }
 }
 
@@ -139,9 +143,18 @@ function ChatApp() {
         prev.map(m => (m.id === pending.id ? { ...m, content: reply, pending: false } : m))
       );
     } catch (err: any) {
+      const url = (err && err.url) || API_URL;
+      const msg = err?.message ? String(err.message) : String(err);
       setMessages(prev =>
         prev.map(m =>
-          m.id === pending.id ? { ...m, content: "Oups, une erreur est survenue.", pending: false, error: String(err?.message || err) } : m
+          m.id === pending.id
+            ? {
+                ...m,
+                content: "Impossible de contacter le serveur.",
+                pending: false,
+                error: `URL: ${url} — Erreur: ${msg}`,
+              }
+            : m
         )
       );
     } finally {
