@@ -1,3 +1,5 @@
+#!/bin/zsh
+#
 # Affiche l'IPv4 (publique si disponible, sinon privée) des instances AWS
 # créées par scripts/create-aws-vm.zsh (tag Name commençant par VM_NAME_PREFIX).
 #

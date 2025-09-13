@@ -26,6 +26,8 @@ ssh $IP -i $HOME/.ssh/fenyo-aws.pem -l root 'systemctl start ollama'
 #ssh $IP -i $HOME/.ssh/fenyo-aws.pem -l root 'ollama pull gpt-oss:120b'
 #ssh $IP -i $HOME/.ssh/fenyo-aws.pem -l root 'ollama pull codestral:22b'
 
+exit 0
+
 ssh $IP -i $HOME/.ssh/fenyo-aws.pem -l fenyo 'rm -rf stable-diffusion-webui ; git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git'
 ssh $IP -i $HOME/.ssh/fenyo-aws.pem -l fenyo 'cd stable-diffusion-webui ; nohup ./webui.sh > webui.sh.log 2>&1 &'
 ssh $IP -i $HOME/.ssh/fenyo-aws.pem -l fenyo 'wget https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors ; mv sd_xl_base_1.0.safetensors stable-diffusion-webui/models/Stable-diffusion'

@@ -6,3 +6,14 @@ index hybride :
 - Lexical (BM25 + fuzzy) sur le texte.
 - Vecteurs sur le texte
 
+------------------------------------------------------------
+
+fenyo-virtual-machine# curl -s -X POST "http://localhost:11434/api/generate" -H "Content-Type: application/json" -d '{"model":"gpt-oss:20b","prompt":"Voici ma question...","options":{"num_ctx":50000}}'
+ollama ps
+=> 50k
+
+curl -s -X POST "http://localhost:11434/api/chat" -H "Content-Type: application/json" -d '{"model":"gpt-oss:20b","messages":[{"role": "user","content":"why is the sky blue?"}],"options":{"num_ctx":10000}}'
+=> 10k
+
+curl -s -X POST "http://localhost:11434/api/chat" -H "Content-Type: application/json" -d '{"model":"gpt-oss:20b","stream":false,"messages":[{"role": "user","content":"why is the sky blue? Very short answer."}],"options":{"num_ctx":10000}}'
+
