@@ -70,6 +70,17 @@ def env_vars():
     return jsonify(items)
 
 
+@app.route("/api/user", methods=["GET"])
+def user_env():
+    """
+    Renvoie en JSON la valeur de la variable d'environnement USER.
+    Sur certains systèmes (ex: Windows), 'USER' peut être absent; on essaie 'USERNAME'.
+    """
+    user = os.environ.get("USER") or os.environ.get("USERNAME") or ""
+    app.logger.info("GET /api/user from %s -> USER=%r", request.remote_addr, user)
+    return jsonify({"USER": user})
+
+
 @app.route("/api/chat", methods=["POST", "OPTIONS"])
 def chat():
     """
