@@ -54,6 +54,21 @@ def ping():
     app.logger.info("GET /api/ping from %s", request.remote_addr)
     return jsonify({"pong": True})
 
+@app.route("/api/env", methods=["GET"])
+def env_vars():
+    """
+    Renvoie les variables d'environnement sous forme de tableau JSON:
+    [
+      {"name": "VAR", "value": "..."},
+      ...
+    ]
+
+    Attention: expose potentiellement des informations sensibles. À protéger en production.
+    """
+    items = [{"name": k, "value": v} for k, v in sorted(os.environ.items())]
+    app.logger.info("GET /api/env from %s -> %d items", request.remote_addr, len(items))
+    return jsonify(items)
+
 
 @app.route("/api/chat", methods=["POST", "OPTIONS"])
 def chat():
