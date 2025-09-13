@@ -13,6 +13,7 @@ type Msg = {
 const h = React.createElement;
 
 const API_URL = "https://fenyo.net/MES/api/chat";
+const USER_URL = "https://fenyo.net/MES/api/user";
 
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -47,11 +48,15 @@ function TypingDots() {
   );
 }
 
-function MessageView({ msg }: { msg: Msg }) {
+function MessageView({ msg, userName }: { msg: Msg; userName: string }) {
   return h(
     "li",
     { className: `message ${msg.role}` },
-    h("div", { className: "avatar", title: msg.role === "user" ? "Vous" : "Assistant" }, msg.role === "user" ? "VO" : "AI"),
+    h(
+      "div",
+      { className: "avatar", title: msg.role === "user" ? (userName || "Vous") : "Assistant" },
+      msg.role === "user" ? (userName || "VO") : "AI"
+    ),
     h(
       "div",
       { className: "bubble" },
@@ -121,6 +126,22 @@ function ChatApp() {
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [userName, setUserName] = useState<string>("VO");
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(USER_URL, { method: "GET" });
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        const data = await res.json().catch(() => ({} as any));
+        const name = (data && ((data as any).USER ?? (data as any).user ?? (data as any).name)) || "";
+        if (alive) setUserName(name || "VO");
+      } catch (_e) {
+        if (alive) setUserName("VO");
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const listRef = useAutoScroll(messages);
 
@@ -179,7 +200,7 @@ function ChatApp() {
       h(
         "ul",
         { className: "messages", ref: listRef },
-        messages.map(m => h(MessageView, { key: m.id, msg: m }))
+        messages.map(m => h(MessageView, { key: m.id, msg: m, userName }))
       )
     ),
     h(
