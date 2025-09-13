@@ -55,7 +55,7 @@ function MessageView({ msg, userName }: { msg: Msg; userName: string }) {
     h(
       "div",
       { className: "avatar", title: msg.role === "user" ? (userName || "Vous") : "Assistant" },
-      msg.role === "user" ? (userName || "VO") : "AI"
+      msg.role === "user" ? (userName || "VO") : "MES"
     ),
     h(
       "div",
@@ -70,11 +70,11 @@ function Header() {
   return h(
     "header",
     { className: "chat-header" },
-    h("div", { className: "logo", "aria-hidden": true }, "AI"),
+    h("div", { className: "logo", "aria-hidden": true }, "MES"),
     h(
       "div",
       { className: "title" },
-      h("strong", null, "Assistant IA"),
+      h("strong", null, "Assistant IA de la Direction Technique CNAM du projet Mon Espace Santé et du DMP"),
       h("span", null, "Posez vos questions, j’y réponds en quelques secondes.")
     )
   );
