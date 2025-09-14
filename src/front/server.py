@@ -135,7 +135,7 @@ def chat():
         if isinstance(c, list) and all(isinstance(x, int) for x in c):
             ctx = c
 
-    model = os.getenv("OLLAMA_MODEL", "llama3.2")
+    model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
     ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/generate")
 
     app.logger.info("Streaming from Ollama %s with model=%s, prompt_len=%d", ollama_url, model, len(prompt))
