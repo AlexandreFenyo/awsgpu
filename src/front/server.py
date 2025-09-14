@@ -143,6 +143,11 @@ def chat():
             )
 
             payload = {"model": model, "prompt": prompt, "stream": True}
+            payload_json = json.dumps(payload, ensure_ascii=False)
+            def _sh_single_quote_escape(s: str) -> str:
+                return s.replace("'", "'\"'\"'")
+            curl_cmd = f"curl -N -H 'Content-Type: application/json' -X POST '{ollama_url}' -d '{_sh_single_quote_escape(payload_json)}'"
+            print(f"[ollama curl] {curl_cmd}", flush=True)
             with requests.post(
                 ollama_url,
                 json=payload,
