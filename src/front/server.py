@@ -145,7 +145,8 @@ def chat():
             # Log de la requête sortante vers Ollama (sur stdout)
             print(
                 f"[ollama request] POST {ollama_url} model={model} "
-                f"prompt_len={len(prompt)} prompt_preview={prompt[:200]!r}",
+                f"prompt_len={len(prompt)} context_len={(len(ctx) if ctx is not None else 0)} "
+                f"prompt_preview={prompt[:200]!r}",
                 flush=True,
             )
 
@@ -157,9 +158,11 @@ def chat():
                 return s.replace("'", "'\"'\"'")
             curl_cmd = f"curl -N -H 'Content-Type: application/json' -X POST '{ollama_url}' -d '{_sh_single_quote_escape(payload_json)}'"
             print(f"[ollama curl] {curl_cmd}", flush=True)
+            headers = {"Content-Type": "application/json; charset=utf-8"}
             with requests.post(
                 ollama_url,
-                json=payload,
+                data=payload_json.encode("utf-8"),
+                headers=headers,
                 stream=True,
                 timeout=(5, 600),
             ) as r:
