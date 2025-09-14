@@ -157,21 +157,25 @@ def chat():
                 # Log du statut HTTP reçu
                 print(f"[ollama response] HTTP {r.status_code}", flush=True)
                 r.raise_for_status()
-                for line in r.iter_lines(chunk_size=8192, decode_unicode=True):
+                for line in r.iter_lines(chunk_size=8192, decode_unicode=False):
                     if not line:
                         continue
                     # Log chaque ligne NDJSON de la réponse
-                    print(f"[ollama response line] {line}", flush=True)
+                    try:
+                        _line_preview = line.decode("utf-8", errors="replace")
+                    except Exception:
+                        _line_preview = str(line)
+                    print(f"[ollama response line] {_line_preview}", flush=True)
                     # Renvoie chaque ligne NDJSON telle quelle vers le client, suivie d'un \n
-                    yield line + "\n"
+                    yield line + b"\n"
         except Exception as e:
             # Log de l'erreur (sur stdout)
             print(f"[ollama error] {e}", flush=True)
             # En cas d'erreur, renvoyer une ligne JSON signalant l'erreur + un done:true pour fermer proprement côté front
             err = {"error": str(e), "done": True}
-            yield json.dumps(err) + "\n"
+            yield (json.dumps(err) + "\n").encode("utf-8")
 
-    return Response(stream_with_context(stream_ollama()), mimetype="application/x-ndjson")
+    return Response(stream_with_context(stream_ollama()), content_type="application/x-ndjson; charset=utf-8")
 
 
 def parse_args():
