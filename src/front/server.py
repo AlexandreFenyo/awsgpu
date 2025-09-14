@@ -130,10 +130,22 @@ def chat():
 
     # Contexte conversationnel optionnel transmis par le front
     ctx: Optional[List[int]] = None
+    context_present = False
     if isinstance(data, dict):
+        context_present = "context" in data
         c = data.get("context")
         if isinstance(c, list) and all(isinstance(x, int) for x in c):
             ctx = c
+
+    # Si aucun champ 'context' n'a été fourni par le front, applique un template de prompt
+    if not context_present:
+        try:
+            tmpl_path = HERE / "prompt-do-not-edit.txt"
+            template = tmpl_path.read_text(encoding="utf-8")
+            prompt = template.replace("{REQUEST}", prompt)
+            print(f"[prompt template] applied from {tmpl_path}", flush=True)
+        except Exception as e:
+            print(f"[prompt template] error: {e}; using raw prompt", flush=True)
 
     model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
     ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/generate")
