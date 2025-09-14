@@ -128,6 +128,13 @@ def chat():
     if not isinstance(prompt, str):
         prompt = str(prompt)
 
+    # Contexte conversationnel optionnel transmis par le front
+    ctx: Optional[List[int]] = None
+    if isinstance(data, dict):
+        c = data.get("context")
+        if isinstance(c, list) and all(isinstance(x, int) for x in c):
+            ctx = c
+
     model = os.getenv("OLLAMA_MODEL", "llama3.2")
     ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/generate")
 
@@ -143,6 +150,8 @@ def chat():
             )
 
             payload = {"model": model, "prompt": prompt, "stream": True}
+            if ctx is not None:
+                payload["context"] = ctx
             payload_json = json.dumps(payload, ensure_ascii=False)
             def _sh_single_quote_escape(s: str) -> str:
                 return s.replace("'", "'\"'\"'")
