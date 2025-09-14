@@ -250,7 +250,7 @@ def main():
     app.logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
     app.logger.info("Démarrage du serveur sur http://%s:%s", args.host, args.port)
-    app.run(host=args.host, port=args.port, debug=False)
+    app.run(host=args.host, port=args.port, debug=False, threaded=True)
 
 
 if __name__ == "__main__":
