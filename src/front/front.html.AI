@@ -1,0 +1,169 @@
+
+Crée une page web correspondant au front d'un ChatBot moderne, en utilisant React.
+La stylesheet est dans le fichier chat.css
+Le HTML est dans le fichier chat.html
+La partie dynamique de cette page est écrite en TypeScript et dans le fichier chat.ts
+Après avoir créé les fichiers, donne-moi les commandes pour que je puisse utiliser des programmes à l'état de l'art comme npm pour pouvoir créer le JavaScript dans chat.js
+
+/add src/front/chat.css
+/add src/front/chat.html
+/add src/front/chat.ts
+
+npm init -y
+npm install react react-dom && npm install -D typescript esbuild @types/react @types/react-dom
+npx esbuild src/front/chat.ts --bundle --outfile=src/front/chat.js --format=iife --target=es2020 --minify
+
+------------------------------------------------------------
+
+/add src/front/server.py
+
+Crée un script Python, dans server.py, qui s'appuie sur Flask pour exposer une API web services REST au front du ChatBot. Cette API se contente d'indiquer les requêtes qu'elle reçoit et renvoie une réponse fixe permettant de tester la communication avec le front. Le port d'écoute par défaut est 8111 et peut être modifié via un paramètre de la ligne de commande du script python.
+
+python3 -m pip install flask
+
+netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8111 connectaddress=172.22.67.5 connectport=8111
+
+------------------------------------------------------------
+
+Modifie le code du serveur pour qu'il réponde aussi aux connexions non locales à la machine.
+
+------------------------------------------------------------
+
+Ajoute dans le serveur Flask une route "/api/env" qui renvoie un tableau en JSON avec le contenu des variables d'environnement.
+
+------------------------------------------------------------
+
+Ajoute dans le serveur Flask une route "/api/user" qui renvoie en JSON le contenu de la variable d'environnement "USER".
+
+------------------------------------------------------------
+
+Dans le front, au lieu d'affiche "VO" comme texte d'avatar de l'utilisateur, affiche son nom récupéré via une requête envoyée au serveur sur /api/user, lors du chargement de la page. N'appelle pas ce web service à chaque fois que tu as besoin de récupérer le texte de l'avatar, uniquement au premier chargement de la page.
+
+------------------------------------------------------------
+
+Fais en sorte d'invoquer le serveur ollama en web services, via http sur le port 11434 de 192.168.0.21, depuis le back pour chaque question posée par l'utilisateur, et de streamer la réponse vers le front, afin que ce dernier puisse l'afficher au fur et à mesure de la réponse.
+Voici un exemple d'invocation avec curl :
+curl http://localhost:11434/api/generate -d '{
+  "model": "llama3.2",
+  "prompt": "Why is the sky blue?"
+}'
+Ne le fais pas en lançant curl mais directement depuis Python, avec les bibliothèques nécessaires à faire une invocation de type POST comme celle-ci.
+Voici un exemple de ce que ollama va renvoyer :
+{"model":"llama3.2","created_at":"2025-09-14T15:57:23.3138893Z","response":"The","done":false}
+{"model":"llama3.2","created_at":"2025-09-14T15:57:23.3165036Z","response":" sky","done":false}
+{"model":"llama3.2","created_at":"2025-09-14T15:57:23.3206637Z","response":" appears","done":false}
+{"model":"llama3.2","created_at":"2025-09-14T15:57:23.3232863Z","response":" blue","done":false}
+{"model":"llama3.2","created_at":"2025-09-14T15:57:24.3925103Z","response":".","done":false}
+{"model":"llama3.2","created_at":"2025-09-14T15:57:24.3951345Z","response":"","done":true,"done_reason":"stop","context":[128006,9125,128007,271,38766,1303,33025,2696,25,6790,220,2366,18,271,128009,128006,882,128007,271,10445,374,279,13180,6437,30,128009,128006,78191,128007,271,791,13180,8111,6437,1606,315,264,25885,2663,72916,11,902,13980,994,40120,84261,449,279,13987,35715,315,45612,304,279,9420,596,16975,13,5810,596,264,44899,16540,1473,16,13,3146,31192,4238,96618,3277,40120,29933,279,9420,596,16975,11,433,5727,682,279,8146,315,279,9621,20326,320,1171,11,19087,11,14071,11,6307,11,6437,11,1280,7992,11,323,80836,4390,17,13,3146,3407,31436,96618,578,24210,93959,315,3177,11,1778,439,6437,323,80836,11,527,38067,810,1109,279,5129,93959,555,279,13987,35715,315,45612,304,279,3805,13,1115,374,3967,439,13558,64069,72916,11,7086,1306,279,8013,83323,10425,13558,64069,11,889,1176,7633,433,627,18,13,3146,10544,3177,96618,1666,264,1121,315,420,72916,11,279,6437,3177,374,77810,6957,279,16975,11,19261,1057,6548,505,682,18445,627,19,13,3146,3976,1010,96618,3277,584,1427,520,279,13180,11,1057,6548,527,9298,10213,279,38067,6437,3177,430,706,1027,4332,304,682,18445,382,791,2944,3249,279,13180,3250,956,5101,80836,320,1820,1933,315,3177,449,279,40243,46406,8,374,1606,1057,6548,617,264,16127,892,54626,420,24210,46406,13,1115,374,3967,439,279,330,12481,8437,32012,1,2515,11,1405,1057,6548,8541,311,4799,279,21063,315,6437,927,80836,382,11663,9547,649,10383,279,10186,1933,315,279,13180,11,1778,439,1473,9,87597,4787,320,68,1326,2637,25793,11,16174,11,323,3090,38752,340,9,4212,315,1938,320,1820,7160,596,2361,304,279,13180,22223,279,3392,315,2167,40120,19261,603,340,9,24610,3993,323,45475,7410,271,4516,11,311,63179,25,279,13180,8111,6437,1606,24210,93959,315,3177,527,38067,810,1109,5129,93959,555,279,13987,35715,304,279,16975,11,3339,6437,279,25462,1933,584,1518,13],"total_duration":1143188500,"load_duration":56195900,"prompt_eval_count":31,"prompt_eval_duration":2665500,"eval_count":341,"eval_duration":1084327100}
+Envoie depuis le back ces messages au fur et à mesure au front, sans modification. Une fois que tu as reçu la ligne avec "done" valant "true", termine la connexion avec le front.
+Dans le front, affiche les mots reçus au fur et à mesure, pour que l'utilisateur puisse voir l'avancée de la réponse au cours de sa génération.
+
+python3 -m pip install requests
+
+------------------------------------------------------------
+
+Affiche sur la sortie standard du script python les requêtes et réponses de web services échangées avec ollama
+
+------------------------------------------------------------
+
+Affiche aussi la requête curl correspondante, afin que je puisse tester à la main.
+
+------------------------------------------------------------
+
+Dans le front, à chaque fois qu'une réponse contient le champ "context" renvoyé par le back quand il proxyfie de ce qu'ollama répond, mémorise ce tableau de nombres et renvoie le dans la requête suivant.
+Voici un exemple :
+le front a reçu ceci : {"model":"llama3.2","created_at":"2025-09-14T15:57:24.3951345Z","response":"","done":true,"done_reason":"stop","context":[128006,9125,128007,271,38766,1303,33025,2696,25,6790,220,2366,18,271,128009,128006,882,128007,271,10445,374,279,13180,6437,30,128009,128006,78191,128007,271,791,13180,8111,6437,1606,315,264,25885,2663,72916,11,902,13980,994,40120,84261,449,279,13987,35715,315,45612,304,279,9420,596,16975,13,5810,596,264,44899,16540,1473,16,13,3146,31192,4238,96618,3277,40120,29933,279,9420,596,16975,11,433,5727,682,279,8146,315,279,9621,20326,320,1171,11,19087,11,14071,11,6307,11,6437,11,1280,7992,11,323,80836,4390,17,13,3146,3407,31436,96618,578,24210,93959,315,3177,11,1778,439,6437,323,80836,11,527,38067,810,1109,279,5129,93959,555,279,13987,35715,315,45612,304,279,3805,13,1115,374,3967,439,13558,64069,72916,11,7086,1306,279,8013,83323,10425,13558,64069,11,889,1176,7633,433,627,18,13,3146,10544,3177,96618,1666,264,1121,315,420,72916,11,279,6437,3177,374,77810,6957,279,16975,11,19261,1057,6548,505,682,18445,627,19,13,3146,3976,1010,96618,3277,584,1427,520,279,13180,11,1057,6548,527,9298,10213,279,38067,6437,3177,430,706,1027,4332,304,682,18445,382,791,2944,3249,279,13180,3250,956,5101,80836,320,1820,1933,315,3177,449,279,40243,46406,8,374,1606,1057,6548,617,264,16127,892,54626,420,24210,46406,13,1115,374,3967,439,279,330,12481,8437,32012,1,2515,11,1405,1057,6548,8541,311,4799,279,21063,315,6437,927,80836,382,11663,9547,649,10383,279,10186,1933,315,279,13180,11,1778,439,1473,9,87597,4787,320,68,1326,2637,25793,11,16174,11,323,3090,38752,340,9,4212,315,1938,320,1820,7160,596,2361,304,279,13180,22223,279,3392,315,2167,40120,19261,603,340,9,24610,3993,323,45475,7410,271,4516,11,311,63179,25,279,13180,8111,6437,1606,24210,93959,315,3177,527,38067,810,1109,5129,93959,555,279,13987,35715,304,279,16975,11,3339,6437,279,25462,1933,584,1518,13],"total_duration":1143188500,"load_duration":56195900,"prompt_eval_count":31,"prompt_eval_duration":2665500,"eval_count":341,"eval_duration":1084327100}
+Il renvoie donc, dans la question suivante, ce tableau de chiffres dans un nouveau paramètre JSON de l'invocation vers le back.
+Le back rajoute alors ce tableau de nombres dans un nouveau paramètre nommé "context" dans la requête JSON vers ollama.
+
+------------------------------------------------------------
+
+Le texte renvoyé par Ollama est en Markdown. Affiche donc dans le front le contenu visuellement de manière correcte.
+
+npm install marked dompurify @types/dompurify
+
+------------------------------------------------------------
+
+Explicite dans chaque appel à ollama que la taille de contexte à utiliser est 131072.
+
+------------------------------------------------------------
+
+Dans le back, quand tu reçois un message de l'utilisateur qui n'a pas de champ "context", modifie-le avant de l'envoyer à ollama comme ceci : charge le contenu du fichier src/front/prompt-do-not-edit.txt, remplace dans le contenu de ce fichier la chaîne {REQUEST} par le contenu du message de l'utilisateur, et c'est cela que tu dois envoyer à ollama.
+
+------------------------------------------------------------
+
+Dans le back, quand tu reçois un message de l'utilisateur qui contient un champ "context", modifie-le avant de l'envoyer à ollama comme ceci : charge le contenu du fichier src/front/prompt2-do-not-edit.txt, remplace dans le contenu de ce fichier la chaîne {REQUEST} par le contenu du message de l'utilisateur, et c'est cela que tu dois envoyer à ollama.
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------
+
+solution via gpt-5-mini, effort medium, verbo high :
+On découpe en parties de 1000 lignes.
+
+Produis moi une sortie en pur texte, à partir du texte que je vais te fournir et qui sera au format Markdown. Je veux que tu me raccourcisses chaque paragraphe de ce texte sans perdre beaucoup d'informations. Tu ne dois pas modifier la structure des différents niveaux de titres. Fais donc des phrases réduites, en prenant soin de ne pas perdre d'information. Par exemple, la phrase "Cet axe porte notamment des ambitions sur Mon espace santé" peut être remplacée par "Axe portant les ambitions de Mon espace santé". Ou encore "La DIONIS est composée de 4 départements :" peut être remplacée en "Les 4 départements de La DIONIS :". Je veux que le texte que tu vas fournir fasse environ 50% de la taille du texte en entrée, il ne faut donc pas trop le réduire pour arriver à un texte de sortie qui fera, en nombre de mots, la moitié du texte d'entrée. Voici le texte à traiter :
+
+début à non inclus ##### 3.1.3.4.6 Gestion des traces et des notifications
+on remet à 0 le contexte
+puis jusqu'à non inclus #### 3.2.2.3 Pilotage Métier de MES
+on remet à 0
+puis jusqu'à non inclus ### 3.3.6 Interfaces DMP avec MES
+on remet à 0
+puis jusqu'à non inclus ### 3.5.3 Métriques de MESDMP
+
+
+------------------------------------------------------------
+
+> /ask Décris-moi la structure de la page web, comme la partie où je saisis et la partie où s'affiche les réponses.
+
+Structure générale
+
+ • chat.html
+    • Contient uniquement  et charge chat.css + chat.js. Tout le contenu visible est rendu par React dans
+      #root.
+ • chat.ts (React)
+    • Rend un conteneur principal:  organisé en 3 zones: en-tête, corps (messages), pied (saisie).
+
+Détail des zones
+
+ 1 En‑tête (barre supérieure)
+
+ • Élément:
+ • Contenu:
+ • Rôle: branding + sous‑titre, fixé en haut (style “card”).
+
+ 2 Corps de conversation (affichage des messages)
+
+ • Élément:
+ • Chaque message:
+ • États:
+    • message.pending → affiche l’animation de frappe (TypingDots: trois points animés).
+    • message.role = "user" ou "assistant" → styles différents (couleur avatar/bulle).
+ • Comportement:
+    • Défilement auto vers le bas à l’arrivée de nouveaux messages (useAutoScroll).
+
+ 3 Zone de saisie (composer)
+
+ • Élément:
+ • Interactions:
+    • Entrée envoie le message.
+    • Shift+Entrée ajoute une nouvelle ligne.
+    • Le bouton “Envoyer” est désactivé si le champ est vide ou si un envoi est en cours.
+    • Après envoi:
+       • Le message utilisateur est ajouté.
+       • Un message assistant “en cours” (pending) s’affiche avec points animés.
+       • Le front appelle POST /api/chat et remplace le pending par la réponse reçue (champ reply du JSON).
+         En cas d’erreur, un texte d’erreur s’affiche dans .meta.
+
+Résumé visuel rapide
+
+ • Haut: en‑tête (logo + titre).
+ • Centre: liste défilante des messages (avatars + bulles user/assistant, animation de frappe).
+ • Bas: barre de composition (textarea + bouton envoyer, aide sur les raccourcis et état).
+

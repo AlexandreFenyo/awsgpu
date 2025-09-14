@@ -49,6 +49,19 @@ stop-rm: stop rm
 rmi:
 	@docker rmi fenyoa/rag
 
+install-front:
+	npm init -y
+	npm install react react-dom && npm install -D typescript esbuild @types/react @types/react-dom
+	python3 -m pip install flask
+
+front:
+	npx esbuild src/front/chat.ts --bundle --outfile=src/front/chat.js --format=iife --target=es2020 --minify
+
+run-back: front
+	rm -f src/front/prompt-do-not-edit.txt
+	cp ../awsgpu-docs/prompt.txt src/front/prompt-do-not-edit.txt
+	cp ../awsgpu-docs/prompt2.txt src/front/prompt2-do-not-edit.txt
+	python3 src/front/server.py
+
 test:
 	@echo $(GITDIR)
-
