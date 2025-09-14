@@ -135,19 +135,33 @@ def chat():
 
     def stream_ollama():
         try:
+            # Log de la requête sortante vers Ollama (sur stdout)
+            print(
+                f"[ollama request] POST {ollama_url} model={model} "
+                f"prompt_len={len(prompt)} prompt_preview={prompt[:200]!r}",
+                flush=True,
+            )
+
+            payload = {"model": model, "prompt": prompt, "stream": True}
             with requests.post(
                 ollama_url,
-                json={"model": model, "prompt": prompt, "stream": True},
+                json=payload,
                 stream=True,
                 timeout=(5, 600),
             ) as r:
+                # Log du statut HTTP reçu
+                print(f"[ollama response] HTTP {r.status_code}", flush=True)
                 r.raise_for_status()
                 for line in r.iter_lines(chunk_size=8192, decode_unicode=True):
                     if not line:
                         continue
+                    # Log chaque ligne NDJSON de la réponse
+                    print(f"[ollama response line] {line}", flush=True)
                     # Renvoie chaque ligne NDJSON telle quelle vers le client, suivie d'un \n
                     yield line + "\n"
         except Exception as e:
+            # Log de l'erreur (sur stdout)
+            print(f"[ollama error] {e}", flush=True)
             # En cas d'erreur, renvoyer une ligne JSON signalant l'erreur + un done:true pour fermer proprement côté front
             err = {"error": str(e), "done": True}
             yield json.dumps(err) + "\n"
