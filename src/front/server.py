@@ -7,7 +7,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response, stream_with_context
+import requests
 
 # Répertoire statique pour servir chat.html / chat.css / chat.js
 HERE = Path(__file__).resolve().parent
@@ -85,9 +86,9 @@ def user_env():
 def chat():
     """
     Endpoint principal attendu par le front (POST /api/chat).
-    - Logue la requête reçue
-    - Retourne une réponse JSON contenant un champ 'reply' fixe
-    - Renvoie aussi un écho minimal du contenu reçu pour debug
+    - Reçoit l'historique { messages: [{role, content}, ...] }
+    - Construit un prompt (dernier message utilisateur)
+    - Invoque Ollama en streaming et propage les lignes NDJSON telles quelles
     """
     if request.method == "OPTIONS":
         # Réponse au preflight CORS
@@ -111,22 +112,47 @@ def chat():
         len(body_text.encode("utf-8")) if isinstance(body_text, str) else 0,
     )
 
-    # Prépare un petit écho utile au debug
-    echo: Dict[str, Any] = {
-        "method": request.method,
-        "path": request.path,
-        "content_type": request.headers.get("Content-Type"),
-        "received": data if data is not None else body_text,
-    }
+    # Construit le prompt (dernier message utilisateur)
+    messages = []
+    if isinstance(data, dict):
+        msgs = data.get("messages")
+        if isinstance(msgs, list):
+            messages = msgs
+    user_msgs = []
+    for m in messages:
+        if isinstance(m, dict) and m.get("role") == "user":
+            c = m.get("content")
+            if isinstance(c, str):
+                user_msgs.append(c)
+    prompt = user_msgs[-1] if user_msgs else (body_text or "")
+    if not isinstance(prompt, str):
+        prompt = str(prompt)
 
-    # Réponse fixe + écho
-    return jsonify(
-        {
-            "ok": True,
-            "reply": FIXED_REPLY,
-            "echo": echo,
-        }
-    )
+    model = os.getenv("OLLAMA_MODEL", "llama3.2")
+    ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/generate")
+
+    app.logger.info("Streaming from Ollama %s with model=%s, prompt_len=%d", ollama_url, model, len(prompt))
+
+    def stream_ollama():
+        try:
+            with requests.post(
+                ollama_url,
+                json={"model": model, "prompt": prompt, "stream": True},
+                stream=True,
+                timeout=(5, 600),
+            ) as r:
+                r.raise_for_status()
+                for line in r.iter_lines(chunk_size=8192, decode_unicode=True):
+                    if not line:
+                        continue
+                    # Renvoie chaque ligne NDJSON telle quelle vers le client, suivie d'un \n
+                    yield line + "\n"
+        except Exception as e:
+            # En cas d'erreur, renvoyer une ligne JSON signalant l'erreur + un done:true pour fermer proprement côté front
+            err = {"error": str(e), "done": True}
+            yield json.dumps(err) + "\n"
+
+    return Response(stream_with_context(stream_ollama()), mimetype="application/x-ndjson")
 
 
 def parse_args():

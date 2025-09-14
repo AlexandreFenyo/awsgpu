@@ -55,7 +55,7 @@ function MessageView({ msg, userName }: { msg: Msg; userName: string }) {
     h(
       "div",
       { className: "avatar", title: msg.role === "user" ? (userName || "Vous") : "Assistant" },
-      msg.role === "user" ? (userName || "VO") : h("img", { src: "/MES/avatar.png", alt: "Assistant" })
+      msg.role === "user" ? (userName || "VO") : h("img", { src: "/MES/favicon.png", alt: "Assistant" })
     ),
     h(
       "div",
@@ -80,8 +80,7 @@ function Header() {
   );
 }
 
-async function sendToApi(history: Msg[]): Promise<string> {
-  // Essaie un endpoint standard JSON: { messages: [{role, content}, ...] } -> { reply: string }
+async function sendToApi(history: Msg[], onDelta: (text: string) => void): Promise<void> {
   try {
     const res = await fetch(API_URL, {
       method: "POST",
@@ -95,19 +94,41 @@ async function sendToApi(history: Msg[]): Promise<string> {
       (e as any).url = API_URL;
       throw e;
     }
-    // Accepte plusieurs formats courants
-    const textCT = res.headers.get("content-type") || "";
-    if (textCT.includes("application/json")) {
-      const data = await res.json();
-      if (typeof data?.reply === "string") return data.reply;
-      const gpt = data?.choices?.[0]?.message?.content;
-      if (typeof gpt === "string") return gpt;
-      if (typeof data?.content === "string") return data.content;
-      if (typeof data?.text === "string") return data.text;
-      // fallback sur JSON inconnu
-      return JSON.stringify(data);
-    } else {
-      return await res.text();
+    const reader = res.body?.getReader();
+    if (!reader) {
+      const e = new Error("Flux de réponse indisponible");
+      (e as any).url = API_URL;
+      throw e;
+    }
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    // Lecture incrémentale des lignes NDJSON
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let idx: number;
+      // Traite toutes les lignes complètes disponibles
+      while ((idx = buffer.indexOf("\n")) !== -1) {
+        const raw = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 1);
+        if (!raw) continue;
+        let obj: any;
+        try {
+          obj = JSON.parse(raw);
+        } catch {
+          continue;
+        }
+        if (typeof obj?.response === "string" && obj.response) {
+          onDelta(obj.response);
+        }
+        if (obj?.done === true) {
+          try { await reader.cancel(); } catch {}
+          return;
+        }
+      }
     }
   } catch (err: any) {
     const e = err instanceof Error ? err : new Error(String(err));
@@ -159,9 +180,15 @@ function ChatApp() {
     setInput("");
 
     try {
-      const reply = await sendToApi([...messages, userMsg]);
+      await sendToApi([...messages, userMsg], (delta) => {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === pending.id ? { ...m, content: m.content + delta } : m
+          )
+        );
+      });
       setMessages(prev =>
-        prev.map(m => (m.id === pending.id ? { ...m, content: reply, pending: false } : m))
+        prev.map(m => (m.id === pending.id ? { ...m, pending: false } : m))
       );
     } catch (err: any) {
       const url = (err && err.url) || API_URL;
@@ -171,7 +198,6 @@ function ChatApp() {
           m.id === pending.id
             ? {
                 ...m,
-                content: "Impossible de contacter le serveur.",
                 pending: false,
                 error: `URL: ${url} — Erreur: ${msg}`,
               }
