@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 type Role = "user" | "assistant";
 type Msg = {
@@ -49,18 +51,27 @@ function TypingDots() {
 }
 
 function MessageView({ msg, userName }: { msg: Msg; userName: string }) {
+  const isAssistant = msg.role === "assistant";
+  const html = isAssistant
+    ? DOMPurify.sanitize((marked.parse(msg.content || "") as string) || "")
+    : "";
+
   return h(
     "li",
     { className: `message ${msg.role}` },
     h(
       "div",
-      { className: "avatar", title: msg.role === "user" ? (userName || "Vous") : "Assistant" },
-      msg.role === "user" ? (userName || "VO") : h("img", { src: "/MES/favicon.png", alt: "Assistant" })
+      { className: "avatar", title: isAssistant ? "Assistant" : (userName || "Vous") },
+      isAssistant ? h("img", { src: "/MES/favicon.png", alt: "Assistant" }) : (userName || "VO")
     ),
     h(
       "div",
       { className: "bubble" },
-      msg.pending ? h(TypingDots) : msg.content,
+      isAssistant
+        ? (msg.pending && !msg.content
+            ? h(TypingDots)
+            : h("div", { dangerouslySetInnerHTML: { __html: html } }))
+        : msg.content,
       msg.error ? h("div", { className: "meta" }, "Erreur: ", msg.error) : null
     )
   );
