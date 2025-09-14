@@ -146,6 +146,15 @@ def chat():
             print(f"[prompt template] applied from {tmpl_path}", flush=True)
         except Exception as e:
             print(f"[prompt template] error: {e}; using raw prompt", flush=True)
+    else:
+        # Si un 'context' est fourni par le front, utiliser le template alternatif
+        try:
+            tmpl_path = HERE / "prompt2-do-not-edit.txt"
+            template = tmpl_path.read_text(encoding="utf-8")
+            prompt = template.replace("{REQUEST}", prompt)
+            print(f"[prompt2 template] applied from {tmpl_path}", flush=True)
+        except Exception as e:
+            print(f"[prompt2 template] error: {e}; using raw prompt", flush=True)
 
     model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
     ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/generate")
