@@ -74,7 +74,7 @@ function Header() {
     h(
       "div",
       { className: "title" },
-      h("strong", null, "Assistant IA de la Direction Technique MES-DMP"),
+      h("strong", null, "Assistant IA de la Direction Technique"),
       h("span", null, "Posez vos questions, j’y réponds en quelques secondes.")
     )
   );
