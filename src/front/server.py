@@ -153,6 +153,8 @@ def chat():
             payload = {"model": model, "prompt": prompt, "stream": True}
             if ctx is not None:
                 payload["context"] = ctx
+            # Taille de contexte explicite pour Ollama
+            payload["options"] = {"num_ctx": 131072}
             payload_json = json.dumps(payload, ensure_ascii=False)
             def _sh_single_quote_escape(s: str) -> str:
                 return s.replace("'", "'\"'\"'")
