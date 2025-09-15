@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from flask import Flask, jsonify, request, Response, stream_with_context
 import requests
+from threading import RLock
 
 # Répertoire statique pour servir chat.html / chat.css / chat.js
 HERE = Path(__file__).resolve().parent
@@ -23,6 +24,10 @@ FIXED_REPLY = (
     "Réponse de test depuis le serveur Flask. "
     "La communication front ↔ backend fonctionne."
 )
+
+# Variables de configuration globales (clé/valeur en chaînes)
+CONFIG_VARS: Dict[str, str] = {}
+CONFIG_LOCK = RLock()
 
 
 @app.after_request
@@ -98,6 +103,32 @@ def command(args: List[str]) -> Response:
                     text = path.read_text(encoding="utf-8")
                 except Exception as e:
                     text = f"Fichier d'aide introuvable ({path}): {e}"
+                yield (json.dumps({"response": text}, ensure_ascii=False) + "\n").encode("utf-8")
+                yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+                return
+            elif cmd == "show":
+                # Affiche les variables de configuration enregistrées
+                with CONFIG_LOCK:
+                    items = sorted(CONFIG_VARS.items())
+                listing = ";".join(f"{k}={v}" for k, v in items)
+                yield (json.dumps({"response": listing}, ensure_ascii=False) + "\n").encode("utf-8")
+                yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+                return
+            elif cmd == "set":
+                # Définition / suppression d'une variable de configuration
+                name = args[1] if len(args) >= 2 else None
+                value = args[2] if len(args) >= 3 else None
+                if name:
+                    with CONFIG_LOCK:
+                        if value is None or value == "":
+                            CONFIG_VARS.pop(name, None)
+                        else:
+                            CONFIG_VARS[name] = value
+                path = HERE / "setvar.txt"
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except Exception as e:
+                    text = f"Information de configuration introuvable ({path}): {e}"
                 yield (json.dumps({"response": text}, ensure_ascii=False) + "\n").encode("utf-8")
                 yield (json.dumps({"done": True}) + "\n").encode("utf-8")
                 return
