@@ -82,6 +82,36 @@ def user_env():
     return jsonify({"USER": user})
 
 
+def command(args: List[str]) -> Response:
+    """
+    Traite les commandes commençant par '/'.
+    Envoie un flux NDJSON compatible avec le front et termine la connexion.
+    """
+    app.logger.info("Traitement de la commande slash: %r", args)
+
+    def gen():
+        try:
+            cmd = (args[0].lower() if args else "")
+            if cmd in ("help", ""):
+                path = HERE / "help.txt"
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except Exception as e:
+                    text = f"Fichier d'aide introuvable ({path}): {e}"
+                yield (json.dumps({"response": text}, ensure_ascii=False) + "\n").encode("utf-8")
+                yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+                return
+            else:
+                msg = f"Commande inconnue: {cmd}. Essayez /help."
+                yield (json.dumps({"response": msg}, ensure_ascii=False) + "\n").encode("utf-8")
+                yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+                return
+        except Exception as e:
+            err = {"error": str(e), "done": True}
+            yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
+
+    return Response(stream_with_context(gen()), content_type="application/x-ndjson; charset=utf-8")
+
 @app.route("/api/chat", methods=["POST", "OPTIONS"])
 def chat():
     """
@@ -127,6 +157,13 @@ def chat():
     prompt = user_msgs[-1] if user_msgs else (body_text or "")
     if not isinstance(prompt, str):
         prompt = str(prompt)
+
+    # Commande slash: bypass Ollama et traiter via 'command'
+    p = prompt.strip()
+    if p.startswith("/"):
+        args = p[1:].strip().split() if len(p) > 1 else []
+        app.logger.info("Slash command received from %s: %s", request.remote_addr, args)
+        return command(args)
 
     # Contexte conversationnel optionnel transmis par le front
     ctx: Optional[List[int]] = None
