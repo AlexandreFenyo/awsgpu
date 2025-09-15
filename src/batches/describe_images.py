@@ -258,7 +258,7 @@ def describe_image_with_ollama(data_url: str) -> str:
         return f"<!-- Erreur lors de la description via Ollama: {e} -->"
 
 
-def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use_local: bool = False, text_only: bool = False) -> str:
+def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use_local: bool = False, text_only: bool = False, force: bool = False) -> str:
     """
     Remplace toutes les images data URL par la description retournée par le modèle.
     """
@@ -269,13 +269,13 @@ def convert_markdown_images(md_text: str, client: "OpenAI", input_path: str, use
         if text_only:
             return "<IMAGE DESCRIPTION START>pas de description<IMAGE DESCRIPTION END>"
         data_url = match.group("url")
-        if data_url in cache:
+        if not force and data_url in cache:
             return cache[data_url]
 
         # Cache disque basé sur le SHA-1 du base64 d'origine
         cache_file = _cache_file_path_for_image(input_path, data_url)
         
-        if cache_file and os.path.isfile(cache_file):
+        if cache_file and os.path.isfile(cache_file) and not force:
             try:
                 with open(cache_file, "r", encoding="utf-8") as cf:
                     cached_text = cf.read()
@@ -315,6 +315,7 @@ def main(argv=None) -> int:
     parser.add_argument("markdown_file", help="Chemin du fichier Markdown en entrée")
     parser.add_argument("-l", "--local", action="store_true", help="Utiliser Ollama local (modèle gpt-oss:20b) au lieu d'OpenAI")
     parser.add_argument("-t", "--text", action="store_true", help="Ne pas invoquer de LLM; insérer 'pas de description' pour chaque image")
+    parser.add_argument("-f", "--force", action="store_true", help="Ignorer le cache et régénérer les descriptions d'images")
     args = parser.parse_args(argv)
 
     in_path = args.markdown_file
@@ -329,7 +330,7 @@ def main(argv=None) -> int:
     if not args.local and not args.text:
         client = _build_openai_client()
 
-    converted = convert_markdown_images(md_text, client, in_path, use_local=args.local, text_only=args.text)
+    converted = convert_markdown_images(md_text, client, in_path, use_local=args.local, text_only=args.text, force=args.force)
 
     out_path = output_path_for(in_path)
     with open(out_path, "w", encoding="utf-8") as f:
