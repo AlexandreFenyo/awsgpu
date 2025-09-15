@@ -194,6 +194,23 @@ def chat():
     if p.startswith("/"):
         args = p[1:].strip().split() if len(p) > 1 else []
         app.logger.info("Slash command received from %s: %s", request.remote_addr, args)
+        cmd = (args[0].lower() if args else "")
+        user_env = os.environ.get("USER", "") or os.environ.get("USERNAME", "")
+        if cmd != "help" and user_env != "fenyo":
+            app.logger.warning("Slash command denied for USER=%r from %s", user_env, request.remote_addr)
+            def gen_denied():
+                try:
+                    path = HERE / "accessdenied.txt"
+                    try:
+                        text = path.read_text(encoding="utf-8")
+                    except Exception as e:
+                        text = f"Accès refusé. Fichier introuvable ({path}): {e}"
+                    yield (json.dumps({"response": text}, ensure_ascii=False) + "\n").encode("utf-8")
+                    yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+                except Exception as e:
+                    err = {"error": str(e), "done": True}
+                    yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
+            return Response(stream_with_context(gen_denied()), content_type="application/x-ndjson; charset=utf-8")
         return command(args)
 
     # Contexte conversationnel optionnel transmis par le front
