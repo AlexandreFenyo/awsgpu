@@ -86,20 +86,47 @@ PY
   fi
 }
 
-# Préparer les champs JSON
-MODEL_JSON=$(printf '%s' "$MODEL" | json_escape)
-PROMPT_JSON=$(json_escape < "$FILE")
+# Construction du JSON et envoi en streaming effectué plus bas (pas de mise en variable pour gros prompts)
 
-# Corps JSON de la requête
-DATA=$(printf '{"model":%s,"prompt":%s,"stream":false,"options":{"num_ctx":%d}}' \
-  "$MODEL_JSON" "$PROMPT_JSON" "$NUM_CTX")
-
-# Appel HTTP
+# Préparation et envoi du JSON en streaming pour éviter "argument list too long"
 set +e
-HTTP_RESPONSE=$(curl -sS --connect-timeout 5 --max-time 600 --fail-with-body \
-  -H 'Content-Type: application/json' \
-  -d "$DATA" \
-  "$ENDPOINT" 2>&1)
+if command -v jq >/dev/null 2>&1; then
+  HTTP_RESPONSE=$(
+    jq -n \
+      --arg model "$MODEL" \
+      --rawfile prompt "$FILE" \
+      --argjson num_ctx "$NUM_CTX" \
+      '{model:$model, prompt:$prompt, stream:false, options:{num_ctx:$num_ctx}}' \
+    | curl -sS --connect-timeout 5 --max-time 600 --fail-with-body \
+        -H 'Content-Type: application/json' \
+        --data-binary @- \
+        "$ENDPOINT" 2>&1
+  )
+elif command -v python3 >/dev/null 2>&1; then
+  HTTP_RESPONSE=$(
+    python3 - "$MODEL" "$NUM_CTX" "$FILE" <<'PY' \
+    | curl -sS --connect-timeout 5 --max-time 600 --fail-with-body \
+        -H 'Content-Type: application/json' \
+        --data-binary @- \
+        "$ENDPOINT" 2>&1
+import sys, json, pathlib
+model = sys.argv[1]
+num_ctx = int(sys.argv[2])
+file_path = sys.argv[3]
+text = pathlib.Path(file_path).read_text(encoding="utf-8", errors="replace")
+payload = {
+    "model": model,
+    "prompt": text,
+    "stream": False,
+    "options": {"num_ctx": num_ctx},
+}
+sys.stdout.write(json.dumps(payload))
+PY
+  )
+else
+  echo "Erreur: 'jq' ou 'python3' est requis pour construire le JSON." >&2
+  exit 2
+fi
 STATUS=$?
 set -e
 
