@@ -53,7 +53,7 @@ if [[ ! -r "$FILE" ]]; then
 fi
 
 # NUM_CTX doit être un entier > 0
-if [[ ! "$NUM_CTX" == <-> ]]; then
+if ! [[ "$NUM_CTX" =~ ^[0-9]+$ ]]; then
   echo "Erreur: num_ctx doit être un entier positif." >&2
   exit 2
 fi
