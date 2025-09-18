@@ -241,22 +241,65 @@ def chat():
         except Exception as e:
             print(f"[prompt2 template] error: {e}; using raw prompt", flush=True)
 
-    model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
-    ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/generate")
+    # Construire la liste de messages pour Ollama (API chat) et injecter le message système
+    out_messages: List[Dict[str, str]] = []
+    # Charger le contenu du fichier system.txt
+    system_text = ""
+    try:
+        system_path = HERE / "system.txt"
+        system_text = system_path.read_text(encoding="utf-8").strip()
+    except Exception as e:
+        print(f"[system prompt] error: {e}; proceeding without system message", flush=True)
+    if system_text:
+        out_messages.append({"role": "system", "content": system_text})
+    # Partir des messages fournis par le client s'ils existent
+    base_messages: List[Dict[str, Any]] = []
+    if isinstance(messages, list):
+        base_messages = [m for m in messages if isinstance(m, dict) and "role" in m and "content" in m]
+    if base_messages:
+        # Remplacer le contenu du dernier message utilisateur par la version templatisée (prompt)
+        replaced = False
+        for i in range(len(base_messages) - 1, -1, -1):
+            m = base_messages[i]
+            if m.get("role") == "user":
+                base_messages = base_messages.copy()
+                m = dict(m)
+                m["content"] = prompt
+                base_messages[i] = m
+                replaced = True
+                break
+        if not replaced:
+            base_messages.append({"role": "user", "content": prompt})
+        out_messages.extend(base_messages)
+    else:
+        out_messages.append({"role": "user", "content": prompt})
 
-    app.logger.info("Streaming from Ollama %s with model=%s, prompt_len=%d", ollama_url, model, len(prompt))
+    model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+    ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/chat")
+
+    app.logger.info("Streaming from Ollama %s with model=%s, messages=%d", ollama_url, model, len(out_messages))
 
     def stream_ollama():
         try:
             # Log de la requête sortante vers Ollama (sur stdout)
+            user_preview = ""
+            try:
+                for m in reversed(out_messages):
+                    if isinstance(m, dict) and m.get("role") == "user":
+                        c = m.get("content")
+                        if isinstance(c, str):
+                            user_preview = c[:200]
+                            break
+            except Exception:
+                pass
             print(
                 f"[ollama request] POST {ollama_url} model={model} "
-                f"prompt_len={len(prompt)} context_len={(len(ctx) if ctx is not None else 0)} "
-                f"prompt_preview={prompt[:200]!r}",
+                f"messages={len(out_messages)} context_len={(len(ctx) if ctx is not None else 0)} "
+                f"user_preview={user_preview!r}",
                 flush=True,
             )
 
-            payload = {"model": model, "prompt": prompt, "stream": True}
+            payload = {"model": model, "messages": out_messages, "stream": True}
             if ctx is not None:
                 payload["context"] = ctx
             # Taille de contexte explicite pour Ollama
