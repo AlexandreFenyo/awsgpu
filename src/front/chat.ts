@@ -93,17 +93,14 @@ function Header() {
 
 async function sendToApi(
   history: Msg[],
-  onDelta: (text: string) => void,
-  onContext?: (ctx: number[]) => void,
-  context?: number[] | null
+  onDelta: (text: string) => void
 ): Promise<void> {
   try {
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: history.map(({ role, content }) => ({ role, content })),
-        ...(context && Array.isArray(context) && context.length > 0 ? { context } : {}),
+        messages: history.map(({ role, content }) => ({ role, content }))
       }),
     });
     if (!res.ok) {
@@ -140,16 +137,11 @@ async function sendToApi(
         }
         // Supporte à la fois l'ancien format (/api/generate) et le nouveau format chat d'Ollama
         if (obj?.done === true) {
-          if (Array.isArray(obj?.context)) {
-            onContext?.(obj.context as number[]);
-          }
           try { await reader.cancel(); } catch {}
           return;
         }
         if (obj && typeof obj?.message?.content === "string" && obj.message.content) {
           onDelta(obj.message.content as string);
-        } else if (typeof obj?.response === "string" && obj.response) {
-          onDelta(obj.response);
         }
       }
     }
@@ -170,7 +162,6 @@ function ChatApp() {
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [context, setContext] = useState<number[] | null>(null);
   const [userName, setUserName] = useState<string>("VO");
   useEffect(() => {
     let alive = true;
@@ -212,11 +203,7 @@ function ChatApp() {
               m.id === pending.id ? { ...m, content: m.content + delta } : m
             )
           );
-        },
-        (ctx) => {
-          setContext(Array.isArray(ctx) ? ctx : null);
-        },
-        context
+        }
       );
       setMessages(prev =>
         prev.map(m => (m.id === pending.id ? { ...m, pending: false } : m))
