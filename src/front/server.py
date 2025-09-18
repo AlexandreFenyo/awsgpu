@@ -245,24 +245,30 @@ def chat():
 
     # Plus de gestion de 'context' transmis par le front (API /api/generate supprimée)
 
-    # Choisit le template selon la position du message utilisateur:
-    # - 1er message utilisateur -> prompt-do-not-edit.txt (ou prompt-nofilter-do-not-edit.txt si FILTER=NONE)
-    # - sinon -> prompt2-do-not-edit.txt (ou prompt2-nofilter-do-not-edit.txt si FILTER=NONE)
-    try:
-        is_first_user = len(user_msgs) <= 1
-        with CONFIG_LOCK:
-            filter_mode = CONFIG_VARS.get("FILTER")
-        use_nofilter = isinstance(filter_mode, str) and filter_mode.upper() == "NONE"
-        if is_first_user:
-            tmpl_filename = "prompt-nofilter-do-not-edit.txt" if use_nofilter else "prompt-do-not-edit.txt"
-        else:
-            tmpl_filename = "prompt2-nofilter-do-not-edit.txt" if use_nofilter else "prompt2-do-not-edit.txt"
-        tmpl_path = HERE / tmpl_filename
-        template = tmpl_path.read_text(encoding="utf-8")
-        prompt = template.replace("{REQUEST}", prompt)
-        print(f"[prompt template] applied from {tmpl_path}", flush=True)
-    except Exception as e:
-        print(f"[prompt template] error: {e}; using raw prompt", flush=True)
+    # Si PROMPT=NONE, n'applique aucun template: on garde le message utilisateur tel quel.
+    with CONFIG_LOCK:
+        prompt_mode = CONFIG_VARS.get("PROMPT")
+    if isinstance(prompt_mode, str) and prompt_mode.upper() == "NONE":
+        print("[prompt template] PROMPT=NONE: using raw user message (no template)", flush=True)
+    else:
+        # Choisit le template selon la position du message utilisateur:
+        # - 1er message utilisateur -> prompt-do-not-edit.txt (ou prompt-nofilter-do-not-edit.txt si FILTER=NONE)
+        # - sinon -> prompt2-do-not-edit.txt (ou prompt2-nofilter-do-not-edit.txt si FILTER=NONE)
+        try:
+            is_first_user = len(user_msgs) <= 1
+            with CONFIG_LOCK:
+                filter_mode = CONFIG_VARS.get("FILTER")
+            use_nofilter = isinstance(filter_mode, str) and filter_mode.upper() == "NONE"
+            if is_first_user:
+                tmpl_filename = "prompt-nofilter-do-not-edit.txt" if use_nofilter else "prompt-do-not-edit.txt"
+            else:
+                tmpl_filename = "prompt2-nofilter-do-not-edit.txt" if use_nofilter else "prompt2-do-not-edit.txt"
+            tmpl_path = HERE / tmpl_filename
+            template = tmpl_path.read_text(encoding="utf-8")
+            prompt = template.replace("{REQUEST}", prompt)
+            print(f"[prompt template] applied from {tmpl_path}", flush=True)
+        except Exception as e:
+            print(f"[prompt template] error: {e}; using raw prompt", flush=True)
 
     # Construire la liste de messages pour Ollama (API chat) et injecter le message système
     out_messages: List[Dict[str, str]] = []
