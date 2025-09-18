@@ -305,6 +305,19 @@ def chat():
                 return s.replace("'", "'\"'\"'")
             curl_cmd = f"curl -N -H 'Content-Type: application/json' -X POST '{ollama_url}' -d '{_sh_single_quote_escape(payload_json)}'"
             print(f"[ollama curl] {curl_cmd}", flush=True)
+
+            # Avant de contacter Ollama, envoyer au client la liste ordonnée des messages
+            # (uniquement les rôles user/assistant) utilisés pour cette requête.
+            try:
+                client_messages = [
+                    m for m in out_messages
+                    if isinstance(m, dict) and m.get("role") in ("user", "assistant")
+                ]
+                yield (json.dumps({"messages": client_messages}, ensure_ascii=False) + "\n").encode("utf-8")
+            except Exception as _e:
+                # En cas d'erreur, on continue sans bloquer le flux
+                pass
+
             headers = {"Content-Type": "application/json; charset=utf-8"}
             with requests.post(
                 ollama_url,

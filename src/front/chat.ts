@@ -92,19 +92,23 @@ function Header() {
 }
 
 async function sendToApi(
-  history: Msg[],
-  onDelta: (text: string) => void
+  serverHistory: { role: Role; content: string }[],
+  newUserText: string,
+  onServerMessages: (msgs: { role: Role; content: string }[]) => void,
+  onDelta: (text: string) => void,
+  onDone: (assistantText: string, msgsFromServer: { role: Role; content: string }[]) => void
 ): Promise<void> {
   try {
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        // Envoie tous les messages (user et assistant) dans l'ordre de création,
-        // en ignorant les messages vides (ex: placeholders en cours).
-        messages: history
-          .filter(m => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.length > 0)
-          .map(({ role, content }) => ({ role, content }))
+        // Envoie les messages précédemment validés par le serveur,
+        // puis le nouveau message utilisateur saisi.
+        messages: [
+          ...serverHistory.map(({ role, content }) => ({ role, content })),
+          { role: "user", content: newUserText }
+        ]
       }),
     });
     if (!res.ok) {
@@ -120,6 +124,8 @@ async function sendToApi(
     }
     const decoder = new TextDecoder();
     let buffer = "";
+    let assistantFull = "";
+    let msgsFromServer: { role: Role; content: string }[] | null = null;
 
     // Lecture incrémentale des lignes NDJSON
     while (true) {
@@ -139,13 +145,26 @@ async function sendToApi(
         } catch {
           continue;
         }
-        // Supporte à la fois l'ancien format (/api/generate) et le nouveau format chat d'Ollama
+        // Réception des messages utilisés (avant le flux de génération)
+        if (Array.isArray(obj?.messages)) {
+          const arr = obj.messages as any[];
+          const cleaned = arr
+            .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+            .map((m) => ({ role: m.role as Role, content: m.content as string }));
+          msgsFromServer = cleaned;
+          onServerMessages(cleaned);
+          continue;
+        }
+        // Flux de génération chat d'Ollama
         if (obj?.done === true) {
           try { await reader.cancel(); } catch {}
+          onDone(assistantFull, msgsFromServer ?? [...serverHistory, { role: "user", content: newUserText }]);
           return;
         }
         if (obj && typeof obj?.message?.content === "string" && obj.message.content) {
-          onDelta(obj.message.content as string);
+          const delta = obj.message.content as string;
+          assistantFull += delta;
+          onDelta(delta);
         }
       }
     }
@@ -158,6 +177,7 @@ async function sendToApi(
 
 function ChatApp() {
   const [messages, setMessages] = useState<Msg[]>(() => []);
+  const [serverHistory, setServerHistory] = useState<{ role: Role; content: string }[]>(() => []);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [userName, setUserName] = useState<string>("VO");
@@ -194,13 +214,20 @@ function ChatApp() {
 
     try {
       await sendToApi(
-        [...messages, userMsg],
+        serverHistory,
+        text,
+        (msgsForServer) => {
+          setServerHistory(msgsForServer);
+        },
         (delta) => {
           setMessages(prev =>
             prev.map(m =>
               m.id === pending.id ? { ...m, content: m.content + delta } : m
             )
           );
+        },
+        (assistantText, msgsForServer) => {
+          setServerHistory([...msgsForServer, { role: "assistant", content: assistantText }]);
         }
       );
       setMessages(prev =>
