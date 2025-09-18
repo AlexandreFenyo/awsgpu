@@ -138,15 +138,18 @@ async function sendToApi(
         } catch {
           continue;
         }
-        if (Array.isArray(obj?.context)) {
-          onContext?.(obj.context as number[]);
-        }
-        if (typeof obj?.response === "string" && obj.response) {
-          onDelta(obj.response);
-        }
+        // Supporte à la fois l'ancien format (/api/generate) et le nouveau format chat d'Ollama
         if (obj?.done === true) {
+          if (Array.isArray(obj?.context)) {
+            onContext?.(obj.context as number[]);
+          }
           try { await reader.cancel(); } catch {}
           return;
+        }
+        if (obj && typeof obj?.message?.content === "string" && obj.message.content) {
+          onDelta(obj.message.content as string);
+        } else if (typeof obj?.response === "string" && obj.response) {
+          onDelta(obj.response);
         }
       }
     }
