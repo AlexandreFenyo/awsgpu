@@ -8,6 +8,7 @@ type Msg = {
   id: string;
   role: Role;
   content: string;
+  thinking?: string;
   pending?: boolean;
   error?: string;
 };
@@ -55,6 +56,9 @@ function MessageView({ msg, userName }: { msg: Msg; userName: string }) {
   const html = isAssistant
     ? DOMPurify.sanitize((marked.parse(msg.content || "") as string) || "")
     : "";
+  const thinkingHtml = isAssistant
+    ? DOMPurify.sanitize((marked.parse(msg.thinking || "") as string) || "")
+    : "";
 
   return h(
     "li",
@@ -68,8 +72,12 @@ function MessageView({ msg, userName }: { msg: Msg; userName: string }) {
       "div",
       { className: "bubble" },
       isAssistant
-        ? (msg.pending && !msg.content
-            ? h(TypingDots)
+        ? (msg.pending
+            ? (msg.content
+                ? h("div", { dangerouslySetInnerHTML: { __html: html } })
+                : (msg.thinking && msg.thinking.length > 0
+                    ? h("div", { style: { color: "#888" }, dangerouslySetInnerHTML: { __html: thinkingHtml } })
+                    : h(TypingDots)))
             : h("div", { dangerouslySetInnerHTML: { __html: html } }))
         : msg.content,
       msg.error ? h("div", { className: "meta" }, "Erreur: ", msg.error) : null
@@ -95,6 +103,7 @@ async function sendToApi(
   serverHistory: { role: Role; content: string }[],
   newUserText: string,
   onServerMessages: (msgs: { role: Role; content: string }[]) => void,
+  onThinking: (delta: string, append: boolean) => void,
   onDelta: (text: string) => void,
   onDone: (assistantText: string, msgsFromServer: { role: Role; content: string }[]) => void
 ): Promise<void> {
@@ -125,6 +134,7 @@ async function sendToApi(
     const decoder = new TextDecoder();
     let buffer = "";
     let assistantFull = "";
+    let assistantThinking = "";
     let msgsFromServer: { role: Role; content: string }[] | null = null;
 
     // Lecture incrémentale des lignes NDJSON
@@ -161,10 +171,27 @@ async function sendToApi(
           onDone(assistantFull, msgsFromServer ?? [...serverHistory, { role: "user", content: newUserText }]);
           return;
         }
-        if (obj && typeof obj?.message?.content === "string" && obj.message.content) {
-          const delta = obj.message.content as string;
-          assistantFull += delta;
-          onDelta(delta);
+        if (obj && obj.message && typeof obj.message === "object") {
+          const c: string = typeof obj.message.content === "string" ? obj.message.content : "";
+          const t: string = typeof (obj.message as any).thinking === "string" ? (obj.message as any).thinking : "";
+
+          // Si Ollama "réfléchit", il envoie thinking (delta) et content vide.
+          if (t && !c) {
+            assistantThinking += t;
+            onThinking(t, true); // append
+            continue;
+          }
+
+          // Dès qu'on reçoit du contenu (réponse), on efface la réflexion affichée.
+          if (c) {
+            if (assistantThinking) {
+              assistantThinking = "";
+              onThinking("", false); // clear
+            }
+            const delta = c;
+            assistantFull += delta;
+            onDelta(delta);
+          }
         }
       }
     }
@@ -227,6 +254,15 @@ function ChatApp() {
         (msgsForServer) => {
           setServerHistory(msgsForServer);
         },
+        (thinkingDelta, append) => {
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === pending.id
+                ? { ...m, thinking: append ? ((m.thinking || "") + thinkingDelta) : "" }
+                : m
+            )
+          );
+        },
         (delta) => {
           setMessages(prev =>
             prev.map(m =>
@@ -239,7 +275,7 @@ function ChatApp() {
         }
       );
       setMessages(prev =>
-        prev.map(m => (m.id === pending.id ? { ...m, pending: false } : m))
+        prev.map(m => (m.id === pending.id ? { ...m, pending: false, thinking: "" } : m))
       );
     } catch (err: any) {
       const url = (err && err.url) || API_URL;
