@@ -100,7 +100,11 @@ async function sendToApi(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: history.map(({ role, content }) => ({ role, content }))
+        // Envoie tous les messages (user et assistant) dans l'ordre de création,
+        // en ignorant les messages vides (ex: placeholders en cours).
+        messages: history
+          .filter(m => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.length > 0)
+          .map(({ role, content }) => ({ role, content }))
       }),
     });
     if (!res.ok) {

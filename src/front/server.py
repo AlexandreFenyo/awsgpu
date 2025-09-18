@@ -242,7 +242,18 @@ def chat():
     # Partir des messages fournis par le client s'ils existent
     base_messages: List[Dict[str, Any]] = []
     if isinstance(messages, list):
-        base_messages = [m for m in messages if isinstance(m, dict) and "role" in m and "content" in m]
+        # Conserver l'ordre de création, et ne transmettre que les messages valides non vides
+        base_messages = []
+        for m in messages:
+            if not (isinstance(m, dict) and "role" in m and "content" in m):
+                continue
+            role = m.get("role")
+            content = m.get("content")
+            if role not in ("user", "assistant"):
+                continue
+            if not isinstance(content, str) or content == "":
+                continue
+            base_messages.append({"role": role, "content": content})
     if base_messages:
         # Remplacer le contenu du dernier message utilisateur par la version templatisée (prompt)
         replaced = False
