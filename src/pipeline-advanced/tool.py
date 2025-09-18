@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import shlex
 from typing import Any, Dict, List, Tuple
 
 try:
@@ -77,12 +78,35 @@ def _ollama_tools_definition() -> List[Dict[str, Any]]:
         }
     ]
 
+def _to_curl(url: str, payload: Dict[str, Any]) -> str:
+    """
+    Construit une commande curl équivalente à la requête HTTP.
+    """
+    headers = [
+        ("Content-Type", "application/json"),
+        ("Accept", "application/json"),
+    ]
+    parts = ["curl", "-sS", "-X", "POST", shlex.quote(url)]
+    for k, v in headers:
+        parts.extend(["-H", shlex.quote(f"{k}: {v}")])
+    body = json.dumps(payload, ensure_ascii=False)
+    parts.extend(["--data", shlex.quote(body)])
+    return " ".join(parts)
+
 
 def _post_chat(base_url: str, payload: Dict[str, Any], timeout: float = 120.0) -> Dict[str, Any]:
     url = f"{base_url}/api/chat"
+    curl_cmd = _to_curl(url, payload)
+    sys.stderr.write(curl_cmd + "\n")
     resp = requests.post(url, json=payload, timeout=timeout)
     resp.raise_for_status()
-    return resp.json()
+    try:
+        data = resp.json()
+    except ValueError:
+        sys.stderr.write(resp.text + "\n")
+        raise
+    sys.stderr.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    return data
 
 
 def _extract_tool_calls(message: Dict[str, Any]) -> List[Dict[str, Any]]:
