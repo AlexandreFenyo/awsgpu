@@ -215,9 +215,13 @@ def chat():
 
     # Plus de gestion de 'context' transmis par le front (API /api/generate supprimée)
 
-    # Applique toujours le template de prompt standard (plus de gestion de 'context')
+    # Choisit le template selon la position du message utilisateur:
+    # - 1er message utilisateur -> prompt-do-not-edit.txt
+    # - sinon -> prompt2-do-not-edit.txt
     try:
-        tmpl_path = HERE / "prompt-do-not-edit.txt"
+        is_first_user = len(user_msgs) <= 1
+        tmpl_filename = "prompt-do-not-edit.txt" if is_first_user else "prompt2-do-not-edit.txt"
+        tmpl_path = HERE / tmpl_filename
         template = tmpl_path.read_text(encoding="utf-8")
         prompt = template.replace("{REQUEST}", prompt)
         print(f"[prompt template] applied from {tmpl_path}", flush=True)
