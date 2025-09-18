@@ -246,11 +246,17 @@ def chat():
     # Plus de gestion de 'context' transmis par le front (API /api/generate supprimée)
 
     # Choisit le template selon la position du message utilisateur:
-    # - 1er message utilisateur -> prompt-do-not-edit.txt
-    # - sinon -> prompt2-do-not-edit.txt
+    # - 1er message utilisateur -> prompt-do-not-edit.txt (ou prompt-nofilter-do-not-edit.txt si FILTER=NONE)
+    # - sinon -> prompt2-do-not-edit.txt (ou prompt2-nofilter-do-not-edit.txt si FILTER=NONE)
     try:
         is_first_user = len(user_msgs) <= 1
-        tmpl_filename = "prompt-do-not-edit.txt" if is_first_user else "prompt2-do-not-edit.txt"
+        with CONFIG_LOCK:
+            filter_mode = CONFIG_VARS.get("FILTER")
+        use_nofilter = isinstance(filter_mode, str) and filter_mode.upper() == "NONE"
+        if is_first_user:
+            tmpl_filename = "prompt-nofilter-do-not-edit.txt" if use_nofilter else "prompt-do-not-edit.txt"
+        else:
+            tmpl_filename = "prompt2-nofilter-do-not-edit.txt" if use_nofilter else "prompt2-do-not-edit.txt"
         tmpl_path = HERE / tmpl_filename
         template = tmpl_path.read_text(encoding="utf-8")
         prompt = template.replace("{REQUEST}", prompt)
