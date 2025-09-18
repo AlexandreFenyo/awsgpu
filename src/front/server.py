@@ -87,61 +87,64 @@ def user_env():
     return jsonify({"USER": user})
 
 
+def command_generator(args: List[str]):
+    """
+    Générateur qui traite les commandes commençant par '/' et produit un flux NDJSON.
+    """
+    app.logger.info("Traitement de la commande slash: %r", args)
+    try:
+        cmd = (args[0].lower() if args else "")
+        if cmd in ("help", ""):
+            path = HERE / "help.txt"
+            try:
+                text = path.read_text(encoding="utf-8")
+            except Exception as e:
+                text = f"Fichier d'aide introuvable ({path}): {e}"
+            yield (json.dumps({"message": {"role": "assistant", "content": text}}, ensure_ascii=False) + "\n").encode("utf-8")
+            yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+            return
+        elif cmd == "show":
+            # Affiche les variables de configuration enregistrées
+            with CONFIG_LOCK:
+                items = sorted(CONFIG_VARS.items())
+            listing = ";".join(f"{k}={v}" for k, v in items)
+            yield (json.dumps({"message": {"role": "assistant", "content": listing}}, ensure_ascii=False) + "\n").encode("utf-8")
+            yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+            return
+        elif cmd == "set":
+            # Définition / suppression d'une variable de configuration
+            name = args[1] if len(args) >= 2 else None
+            value = args[2] if len(args) >= 3 else None
+            if name:
+                with CONFIG_LOCK:
+                    if value is None or value == "":
+                        CONFIG_VARS.pop(name, None)
+                    else:
+                        CONFIG_VARS[name] = value
+            path = HERE / "setvar.txt"
+            try:
+                text = path.read_text(encoding="utf-8")
+            except Exception as e:
+                text = f"Information de configuration introuvable ({path}): {e}"
+            yield (json.dumps({"message": {"role": "assistant", "content": text}}, ensure_ascii=False) + "\n").encode("utf-8")
+            yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+            return
+        else:
+            msg = f"Commande inconnue: {cmd}. Essayez /help."
+            yield (json.dumps({"message": {"role": "assistant", "content": msg}}, ensure_ascii=False) + "\n").encode("utf-8")
+            yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+            return
+    except Exception as e:
+        err = {"error": str(e), "done": True}
+        yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
+
+
 def command(args: List[str]) -> Response:
     """
     Traite les commandes commençant par '/'.
     Envoie un flux NDJSON compatible avec le front et termine la connexion.
     """
-    app.logger.info("Traitement de la commande slash: %r", args)
-
-    def gen():
-        try:
-            cmd = (args[0].lower() if args else "")
-            if cmd in ("help", ""):
-                path = HERE / "help.txt"
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except Exception as e:
-                    text = f"Fichier d'aide introuvable ({path}): {e}"
-                yield (json.dumps({"message": {"role": "assistant", "content": text}}, ensure_ascii=False) + "\n").encode("utf-8")
-                yield (json.dumps({"done": True}) + "\n").encode("utf-8")
-                return
-            elif cmd == "show":
-                # Affiche les variables de configuration enregistrées
-                with CONFIG_LOCK:
-                    items = sorted(CONFIG_VARS.items())
-                listing = ";".join(f"{k}={v}" for k, v in items)
-                yield (json.dumps({"message": {"role": "assistant", "content": listing}}, ensure_ascii=False) + "\n").encode("utf-8")
-                yield (json.dumps({"done": True}) + "\n").encode("utf-8")
-                return
-            elif cmd == "set":
-                # Définition / suppression d'une variable de configuration
-                name = args[1] if len(args) >= 2 else None
-                value = args[2] if len(args) >= 3 else None
-                if name:
-                    with CONFIG_LOCK:
-                        if value is None or value == "":
-                            CONFIG_VARS.pop(name, None)
-                        else:
-                            CONFIG_VARS[name] = value
-                path = HERE / "setvar.txt"
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except Exception as e:
-                    text = f"Information de configuration introuvable ({path}): {e}"
-                yield (json.dumps({"message": {"role": "assistant", "content": text}}, ensure_ascii=False) + "\n").encode("utf-8")
-                yield (json.dumps({"done": True}) + "\n").encode("utf-8")
-                return
-            else:
-                msg = f"Commande inconnue: {cmd}. Essayez /help."
-                yield (json.dumps({"message": {"role": "assistant", "content": msg}}, ensure_ascii=False) + "\n").encode("utf-8")
-                yield (json.dumps({"done": True}) + "\n").encode("utf-8")
-                return
-        except Exception as e:
-            err = {"error": str(e), "done": True}
-            yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
-
-    return Response(stream_with_context(gen()), content_type="application/x-ndjson; charset=utf-8")
+    return Response(stream_with_context(command_generator(args)), content_type="application/x-ndjson; charset=utf-8")
 
 @app.route("/api/chat", methods=["POST", "OPTIONS"])
 def chat():
@@ -211,7 +214,34 @@ def chat():
                     err = {"error": str(e), "done": True}
                     yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
             return Response(stream_with_context(gen_denied()), content_type="application/x-ndjson; charset=utf-8")
-        return command(args)
+
+        # Préparer la liste de messages à renvoyer au front sans inclure le message slash courant
+        client_messages: List[Dict[str, str]] = []
+        try:
+            for idx, m in enumerate(messages):
+                if not (isinstance(m, dict) and m.get("role") in ("user", "assistant")):
+                    continue
+                c = m.get("content")
+                if not isinstance(c, str) or c == "":
+                    continue
+                # Exclut le dernier message utilisateur s'il commence par '/'
+                if idx == len(messages) - 1 and c.strip().startswith("/"):
+                    continue
+                client_messages.append({"role": m.get("role"), "content": c})
+        except Exception:
+            client_messages = []
+
+        def gen_slash():
+            # 1) Renvoyer au client la liste des messages conservés (sans le slash)
+            try:
+                yield (json.dumps({"messages": client_messages}, ensure_ascii=False) + "\n").encode("utf-8")
+            except Exception:
+                pass
+            # 2) Puis streamer la réponse de la commande
+            for chunk in command_generator(args):
+                yield chunk
+
+        return Response(stream_with_context(gen_slash()), content_type="application/x-ndjson; charset=utf-8")
 
     # Plus de gestion de 'context' transmis par le front (API /api/generate supprimée)
 
