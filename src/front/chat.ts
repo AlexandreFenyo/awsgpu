@@ -110,7 +110,8 @@ async function sendToApi(
   onServerMessages: (msgs: { role: Role; content: string }[]) => void,
   onThinking: (delta: string, append: boolean) => void,
   onDelta: (text: string) => void,
-  onDone: (assistantText: string, msgsFromServer: { role: Role; content: string }[]) => void
+  onDone: (assistantText: string, msgsFromServer: { role: Role; content: string }[]) => void,
+  onPromptEvalCount?: (count: number) => void
 ): Promise<void> {
   try {
     const res = await fetch(API_URL, {
@@ -170,6 +171,10 @@ async function sendToApi(
           onServerMessages(cleaned);
           continue;
         }
+        // Capture prompt_eval_count s'il est présent
+        if (typeof obj?.prompt_eval_count === "number") {
+          onPromptEvalCount?.(obj.prompt_eval_count as number);
+        }
         // Flux de génération chat d'Ollama
         if (obj?.done === true) {
           try { await reader.cancel(); } catch {}
@@ -213,6 +218,7 @@ function ChatApp() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [userName, setUserName] = useState<string>("VO");
+  const [promptEvalCount, setPromptEvalCount] = useState<number>(0);
 
   // À chaque rechargement, on repart de zéro pour l'historique envoyé au serveur
   useEffect(() => {
@@ -277,6 +283,9 @@ function ChatApp() {
         },
         (assistantText, msgsForServer) => {
           setServerHistory([...msgsForServer, { role: "assistant", content: assistantText }]);
+        },
+        (count) => {
+          setPromptEvalCount(count);
         }
       );
       setMessages(prev =>
@@ -324,7 +333,15 @@ function ChatApp() {
     h(
       "footer",
       { className: "chat-input" },
-      h("div", { className: "toolbar" }, h("div", null, "Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne")),
+      h(
+        "div",
+        { className: "toolbar" },
+        h(
+          "div",
+          null,
+          `Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne • contexte current : ${promptEvalCount} ${promptEvalCount === 0 ? "token" : "tokens"}`
+        )
+      ),
       h(
         "div",
         { className: "composer" },
