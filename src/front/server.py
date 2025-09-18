@@ -264,7 +264,7 @@ def chat():
     model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
     ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/chat")
 
-    app.logger.info("Streaming from Ollama %s with model=%s, messages=%d", ollama_url, model, len(out_messages))
+    app.logger.info("Streaming from Ollama %s with model=%s, in_messages=%d, out_messages=%d", ollama_url, model, len(messages), len(out_messages))
 
     def stream_ollama():
         try:

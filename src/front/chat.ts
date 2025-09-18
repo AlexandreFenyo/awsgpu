@@ -153,13 +153,7 @@ async function sendToApi(
 }
 
 function ChatApp() {
-  const [messages, setMessages] = useState<Msg[]>(() => [
-    {
-      id: uid(),
-      role: "assistant",
-      content: "Bonjour ! Je suis votre assistant IA. Comment puis-je vous aider aujourd’hui ?",
-    },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>(() => []);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [userName, setUserName] = useState<string>("VO");
