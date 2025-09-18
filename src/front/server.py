@@ -103,7 +103,7 @@ def command(args: List[str]) -> Response:
                     text = path.read_text(encoding="utf-8")
                 except Exception as e:
                     text = f"Fichier d'aide introuvable ({path}): {e}"
-                yield (json.dumps({"response": text}, ensure_ascii=False) + "\n").encode("utf-8")
+                yield (json.dumps({"message": {"role": "assistant", "content": text}}, ensure_ascii=False) + "\n").encode("utf-8")
                 yield (json.dumps({"done": True}) + "\n").encode("utf-8")
                 return
             elif cmd == "show":
@@ -111,7 +111,7 @@ def command(args: List[str]) -> Response:
                 with CONFIG_LOCK:
                     items = sorted(CONFIG_VARS.items())
                 listing = ";".join(f"{k}={v}" for k, v in items)
-                yield (json.dumps({"response": listing}, ensure_ascii=False) + "\n").encode("utf-8")
+                yield (json.dumps({"message": {"role": "assistant", "content": listing}}, ensure_ascii=False) + "\n").encode("utf-8")
                 yield (json.dumps({"done": True}) + "\n").encode("utf-8")
                 return
             elif cmd == "set":
@@ -129,12 +129,12 @@ def command(args: List[str]) -> Response:
                     text = path.read_text(encoding="utf-8")
                 except Exception as e:
                     text = f"Information de configuration introuvable ({path}): {e}"
-                yield (json.dumps({"response": text}, ensure_ascii=False) + "\n").encode("utf-8")
+                yield (json.dumps({"message": {"role": "assistant", "content": text}}, ensure_ascii=False) + "\n").encode("utf-8")
                 yield (json.dumps({"done": True}) + "\n").encode("utf-8")
                 return
             else:
                 msg = f"Commande inconnue: {cmd}. Essayez /help."
-                yield (json.dumps({"response": msg}, ensure_ascii=False) + "\n").encode("utf-8")
+                yield (json.dumps({"message": {"role": "assistant", "content": msg}}, ensure_ascii=False) + "\n").encode("utf-8")
                 yield (json.dumps({"done": True}) + "\n").encode("utf-8")
                 return
         except Exception as e:
@@ -205,7 +205,7 @@ def chat():
                         text = path.read_text(encoding="utf-8")
                     except Exception as e:
                         text = f"Accès refusé. Fichier introuvable ({path}): {e}"
-                    yield (json.dumps({"response": text}, ensure_ascii=False) + "\n").encode("utf-8")
+                    yield (json.dumps({"message": {"role": "assistant", "content": text}}, ensure_ascii=False) + "\n").encode("utf-8")
                     yield (json.dumps({"done": True}) + "\n").encode("utf-8")
                 except Exception as e:
                     err = {"error": str(e), "done": True}
