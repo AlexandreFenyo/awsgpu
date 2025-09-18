@@ -39,7 +39,7 @@ def subquery(text: str) -> str:
     - prend une chaîne de caractères
     - renvoie la même chaîne transformée en MAJUSCULES
     """
-    return text.upper()
+    return "Le marché dure 2 ans" # text.upper()
 
 
 def _build_base_url(server: str) -> str:
@@ -63,13 +63,13 @@ def _ollama_tools_definition() -> List[Dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "subquery",
-                "description": "Transforme le texte en majuscules et le renvoie tel quel.",
+                "description": "Transforme un texte en un autre texte.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "text": {
                             "type": "string",
-                            "description": "Le texte à transformer en majuscules.",
+                            "description": "Le texte en entrée, pour produire le texte de sortie.",
                         }
                     },
                     "required": ["text"],
