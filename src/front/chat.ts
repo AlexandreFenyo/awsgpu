@@ -76,7 +76,12 @@ function MessageView({ msg, userName }: { msg: Msg; userName: string }) {
             ? (msg.content
                 ? h("div", { dangerouslySetInnerHTML: { __html: html } })
                 : (msg.thinking && msg.thinking.length > 0
-                    ? h("div", { style: { color: "#888" }, dangerouslySetInnerHTML: { __html: thinkingHtml } })
+                    ? h(
+                        "div",
+                        { style: { color: "#888" } },
+                        "Thinking: ",
+                        h("div", { dangerouslySetInnerHTML: { __html: thinkingHtml } })
+                      )
                     : h(TypingDots)))
             : h("div", { dangerouslySetInnerHTML: { __html: html } }))
         : msg.content,
