@@ -98,15 +98,62 @@ def _post_chat(base_url: str, payload: Dict[str, Any], timeout: float = 120.0) -
     url = f"{base_url}/api/chat"
     curl_cmd = _to_curl(url, payload)
     sys.stderr.write(curl_cmd + "\n")
-    resp = requests.post(url, json=payload, timeout=timeout)
+
+    use_stream = bool(payload.get("stream"))
+    resp = requests.post(url, json=payload, timeout=timeout, stream=use_stream)
     resp.raise_for_status()
-    try:
-        data = resp.json()
-    except ValueError:
-        sys.stderr.write(resp.text + "\n")
-        raise
-    sys.stderr.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-    return data
+
+    if not use_stream:
+        try:
+            data = resp.json()
+        except ValueError:
+            sys.stderr.write(resp.text + "\n")
+            raise
+        sys.stderr.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+        return data
+
+    # Mode streaming: on lit des lignes JSON successives et on agrège.
+    aggregated_content: str = ""
+    collected_tool_calls: List[Dict[str, Any]] | None = None
+    last_message_obj: Dict[str, Any] | None = None
+
+    for line in resp.iter_lines(decode_unicode=True):
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except Exception:
+            # Ligne non JSON — on l'affiche telle quelle pour debug, puis on continue
+            sys.stderr.write(line + "\n")
+            continue
+
+        # Affiche chaque événement JSON reçu
+        sys.stderr.write(json.dumps(event, ensure_ascii=False, indent=2) + "\n")
+
+        if isinstance(event, dict):
+            msg = event.get("message")
+            if isinstance(msg, dict):
+                piece = msg.get("content")
+                if isinstance(piece, str):
+                    aggregated_content += piece
+
+                tcs = msg.get("tool_calls")
+                if isinstance(tcs, list) and tcs:
+                    collected_tool_calls = tcs
+
+                last_message_obj = msg
+
+            if event.get("done") is True:
+                break
+
+    # Construit une structure équivalente au mode non-streamé
+    message_out: Dict[str, Any] = last_message_obj or {}
+    if aggregated_content:
+        message_out["content"] = aggregated_content
+    if collected_tool_calls is not None:
+        message_out["tool_calls"] = collected_tool_calls
+
+    return {"message": message_out}
 
 
 def _extract_tool_calls(message: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -161,7 +208,7 @@ def run_chat(server: str, model: str, user_text: str) -> Tuple[str, List[Dict[st
             "messages": messages,
             "tools": tools,
             "options": {"num_ctx": 131072},
-            "stream": False,
+            "stream": True,
         }
         data = _post_chat(base_url, payload)
         assistant_msg = data.get("message", {}) if isinstance(data, dict) else {}
