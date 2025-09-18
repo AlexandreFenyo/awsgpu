@@ -181,6 +181,14 @@ function ChatApp() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [userName, setUserName] = useState<string>("VO");
+
+  // À chaque rechargement, on repart de zéro pour l'historique envoyé au serveur
+  useEffect(() => {
+    try { localStorage.removeItem("serverHistory"); } catch {}
+    try { sessionStorage.removeItem("serverHistory"); } catch {}
+    setServerHistory([]);
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
