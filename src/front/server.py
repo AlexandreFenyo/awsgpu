@@ -230,13 +230,32 @@ def chat():
 
     # Construire la liste de messages pour Ollama (API chat) et injecter le message système
     out_messages: List[Dict[str, str]] = []
-    # Charger le contenu du fichier system.txt
+    # Charger le contenu du fichier system.txt (avec variantes selon CONFIG_VARS['FUN'])
     system_text = ""
     try:
-        system_path = HERE / "system.txt"
+        # Déterminer le fichier système à utiliser en fonction de la variable FUN
+        with CONFIG_LOCK:
+            fun = CONFIG_VARS.get("FUN")
+        sys_filename = "system.txt"
+        if isinstance(fun, str):
+            if fun.upper() == "DO":
+                sys_filename = "system-DO.txt"
+            elif fun.upper() == "SB":
+                sys_filename = "system-SB.txt"
+
+        system_path = HERE / sys_filename
         system_text = system_path.read_text(encoding="utf-8").strip()
+        print(f"[system prompt] using {system_path}", flush=True)
     except Exception as e:
-        print(f"[system prompt] error: {e}; proceeding without system message", flush=True)
+        print(f"[system prompt] error reading {sys_filename if 'sys_filename' in locals() else 'system.txt'}: {e}; proceeding without system message", flush=True)
+        # Repli sur system.txt si une variante échoue
+        try:
+            if 'sys_filename' in locals() and sys_filename != "system.txt":
+                system_path = HERE / "system.txt"
+                system_text = system_path.read_text(encoding="utf-8").strip()
+                print(f"[system prompt] fallback to {system_path}", flush=True)
+        except Exception as e2:
+            print(f"[system prompt] fallback error: {e2}", flush=True)
     if system_text:
         out_messages.append({"role": "system", "content": system_text})
     # Partir des messages fournis par le client s'ils existent
