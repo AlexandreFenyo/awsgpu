@@ -125,7 +125,7 @@ def tool_search_web(query: str, num_results: Optional[int] = None) -> str:
     return "http://fenyo.net"
 
 def tool_fetch_content(url: str, max_chars: Optional[int] = None, max_sentences: Optional[int] = None, summarize: Optional[bool] = None) -> str:
-    return "voici le contenu"
+    return "Voici le texte extrait de l'URL: Ce site est celui du serveur X.org pour Unix"
 
 def tool_search_local_file(filename: Optional[str] = None, query: Optional[str] = None) -> str:
     return "ceci est le contenu du fichier local"
