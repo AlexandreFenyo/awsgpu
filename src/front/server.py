@@ -167,6 +167,8 @@ def add_cors_headers(resp):
     resp.headers["Vary"] = "Origin"
     resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
     resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    resp.headers["Cache-Control"] = "no-cache, no-transform"
+    resp.headers["X-Accel-Buffering"] = "no"
     return resp
 
 
@@ -473,6 +475,7 @@ def chat():
             current_messages: List[Dict[str, Any]] = list(out_messages)
             tools = get_tools_definitions()
             iteration = 0
+            saw_done = False
 
             def _user_preview_from(msgs: List[Dict[str, Any]]) -> str:
                 try:
@@ -559,6 +562,7 @@ def chat():
                                 if isinstance(tcs, list) and len(tcs) > 0:
                                     pending_tool_calls = tcs
                             if obj.get("done") is True:
+                                saw_done = True
                                 break
 
                 # Si l'assistant a demandé des outils, on les appelle puis on relance un tour
@@ -612,6 +616,12 @@ def chat():
                     continue
 
                 # Pas d'appel d'outil -> terminé
+                if not saw_done:
+                    # Dans certains cas, assurer un évènement de fin pour le front
+                    try:
+                        yield (json.dumps({"done": True}) + "\n").encode("utf-8")
+                    except Exception:
+                        pass
                 break
 
         except Exception as e:

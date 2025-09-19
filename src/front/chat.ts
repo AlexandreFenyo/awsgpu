@@ -174,8 +174,9 @@ async function sendToApi(
         }
         // Flux de génération chat d'Ollama
         if (obj?.done === true) {
-          try { await reader.cancel(); } catch {}
           onDone(assistantFull, msgsFromServer ?? [...serverHistory, { role: "user", content: newUserText }]);
+          // Ne pas annuler explicitement le flux côté navigateur pour éviter NS_BASE_STREAM_CLOSED.
+          // On laisse le serveur fermer proprement le flux.
           return;
         }
         if (obj && obj.message && typeof obj.message === "object") {
