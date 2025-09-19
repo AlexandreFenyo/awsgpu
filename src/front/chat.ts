@@ -173,12 +173,7 @@ async function sendToApi(
           onPromptEvalCount?.(obj.prompt_eval_count as number);
         }
         // Flux de génération chat d'Ollama
-        if (obj?.done === true) {
-          onDone(assistantFull, msgsFromServer ?? [...serverHistory, { role: "user", content: newUserText }]);
-          // Ne pas annuler explicitement le flux côté navigateur pour éviter NS_BASE_STREAM_CLOSED.
-          // On laisse le serveur fermer proprement le flux.
-          return;
-        }
+        // 1) Traiter d'abord les deltas de message (certains modèles n'envoient le contenu qu'à la dernière ligne done:true)
         if (obj && obj.message && typeof obj.message === "object") {
           const c: string = typeof obj.message.content === "string" ? obj.message.content : "";
           const t: string = typeof (obj.message as any).thinking === "string" ? (obj.message as any).thinking : "";
@@ -200,6 +195,14 @@ async function sendToApi(
             assistantFull += delta;
             onDelta(delta);
           }
+        }
+        // 2) Puis gérer le signal de fin. Ainsi, si le contenu n'arrive qu'à la dernière ligne (done:true),
+        // on l'a déjà intégré dans assistantFull avant de terminer.
+        if (obj?.done === true) {
+          onDone(assistantFull, msgsFromServer ?? [...serverHistory, { role: "user", content: newUserText }]);
+          // Ne pas annuler explicitement le flux côté navigateur pour éviter NS_BASE_STREAM_CLOSED.
+          // On laisse le serveur fermer proprement le flux.
+          return;
         }
       }
     }
