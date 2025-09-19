@@ -580,9 +580,12 @@ def chat():
                         tool_msg: Dict[str, Any] = {
                             "role": "tool",
                             "content": result_text,
-                            "tool_call_id": call.get("id") or call.get("call_id") or "",
                             "name": name,
                         }
+                        # N'ajouter tool_call_id que s'il est fourni par le modèle
+                        tcid = call.get("id") or call.get("tool_call_id") or call.get("call_id")
+                        if isinstance(tcid, str) and tcid:
+                            tool_msg["tool_call_id"] = tcid
                         tool_results.append(tool_msg)
 
                     # On ajoute le message assistant (avec tool_calls) et les résultats outillés
