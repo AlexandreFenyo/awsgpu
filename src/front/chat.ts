@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
-type Role = "user" | "assistant";
+type Role = "user" | "assistant" | "tool";
 type Msg = {
   id: string;
   role: Role;
@@ -105,12 +105,12 @@ function Header() {
 }
 
 async function sendToApi(
-  serverHistory: { role: Role; content: string }[],
+  serverHistory: any[],
   newUserText: string,
-  onServerMessages: (msgs: { role: Role; content: string }[]) => void,
+  onServerMessages: (msgs: any[]) => void,
   onThinking: (delta: string, append: boolean) => void,
   onDelta: (text: string) => void,
-  onDone: (assistantText: string, msgsFromServer: { role: Role; content: string }[]) => void,
+  onDone: (assistantText: string, msgsFromServer: any[]) => void,
   onPromptEvalCount?: (count: number) => void
 ): Promise<void> {
   try {
@@ -118,10 +118,10 @@ async function sendToApi(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        // Envoie les messages précédemment validés par le serveur,
+        // Envoie les messages précédemment validés par le serveur (inchangés),
         // puis le nouveau message utilisateur saisi.
         messages: [
-          ...serverHistory.map(({ role, content }) => ({ role, content })),
+          ...serverHistory,
           { role: "user", content: newUserText }
         ]
       }),
@@ -141,7 +141,7 @@ async function sendToApi(
     let buffer = "";
     let assistantFull = "";
     let assistantThinking = "";
-    let msgsFromServer: { role: Role; content: string }[] | null = null;
+    let msgsFromServer: any[] | null = null;
 
     // Lecture incrémentale des lignes NDJSON
     while (true) {
@@ -164,11 +164,8 @@ async function sendToApi(
         // Réception des messages utilisés (avant le flux de génération)
         if (Array.isArray(obj?.messages)) {
           const arr = obj.messages as any[];
-          const cleaned = arr
-            .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-            .map((m) => ({ role: m.role as Role, content: m.content as string }));
-          msgsFromServer = cleaned;
-          onServerMessages(cleaned);
+          msgsFromServer = arr;
+          onServerMessages(arr);
           continue;
         }
         // Capture prompt_eval_count s'il est présent
@@ -214,7 +211,7 @@ async function sendToApi(
 
 function ChatApp() {
   const [messages, setMessages] = useState<Msg[]>(() => []);
-  const [serverHistory, setServerHistory] = useState<{ role: Role; content: string }[]>(() => []);
+  const [serverHistory, setServerHistory] = useState<any[]>(() => []);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [userName, setUserName] = useState<string>("VO");

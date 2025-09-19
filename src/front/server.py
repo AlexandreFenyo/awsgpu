@@ -29,6 +29,136 @@ FIXED_REPLY = (
 CONFIG_VARS: Dict[str, str] = {}
 CONFIG_LOCK = RLock()
 
+# Outils (tools) - définitions et implémentations minimales
+def _tool_def_search_web() -> dict:
+    # Définition telle que demandée par l'utilisateur
+    return {
+        "type": "function",
+        "name": "search_web",
+        "description": "Search the web and return top results",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Query to search on the web"
+                },
+                "num_results": {
+                    "type": "integer",
+                    "description": "Number of results to return",
+                    "minimum": 1,
+                    "maximum": 20
+                }
+            },
+            "required": ["query"]
+        }
+    }
+
+def _tool_def_fetch_content() -> dict:
+    return {
+        "type": "function",
+        "name": "fetch_content",
+        "description": "Fetch and extract textual content from a given URL",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "URL of the page to fetch"
+                },
+                "max_chars": {
+                    "type": "integer",
+                    "description": "Maximum number of characters to extract (optionnel)"
+                },
+                "max_sentences": {
+                    "type": "integer",
+                    "description": "Maximum number of sentences to extract (optionnel)"
+                },
+                "summarize": {
+                    "type": "boolean",
+                    "description": "Return a summary instead of full text (optionnel)"
+                }
+            },
+            "required": ["url"]
+        }
+    }
+
+def _tool_def_search_local_file() -> dict:
+    return {
+        "type": "function",
+        "name": "search_local_file",
+        "description": "Search for information contained in a local file",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "The file name to search in"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Query for searching within the local file"
+                }
+            },
+            "required": ["query"]
+        }
+    }
+
+def get_tools_definitions() -> List[Dict[str, Any]]:
+    """
+    Retourne la liste des outils au format attendu par Ollama.
+    Ollama attend habituellement un objet { type: 'function', function: { name, description, parameters } }.
+    On enveloppe donc les définitions demandées dans une clé 'function'.
+    """
+    raw_defs = [
+        _tool_def_search_web(),
+        _tool_def_fetch_content(),
+        _tool_def_search_local_file(),
+    ]
+    wrapped = []
+    for d in raw_defs:
+        wrapped.append({
+            "type": "function",
+            "function": d,
+        })
+    return wrapped
+
+# Implémentations minimales
+def tool_search_web(query: str, num_results: Optional[int] = None) -> str:
+    return "http://fenyo.net"
+
+def tool_fetch_content(url: str, max_chars: Optional[int] = None, max_sentences: Optional[int] = None, summarize: Optional[bool] = None) -> str:
+    return "voici le contenu"
+
+def tool_search_local_file(filename: Optional[str] = None, query: Optional[str] = None) -> str:
+    return "ceci est le contenu du fichier local"
+
+def call_tool_minimal(name: str, args: Dict[str, Any]) -> str:
+    """
+    Dispatcheur minimal vers les implémentations des outils.
+    """
+    try:
+        if name == "search_web":
+            return tool_search_web(
+                query=str(args.get("query", "")),
+                num_results=int(args.get("num_results")) if args.get("num_results") is not None else None,
+            )
+        if name == "fetch_content":
+            return tool_fetch_content(
+                url=str(args.get("url", "")),
+                max_chars=int(args.get("max_chars")) if args.get("max_chars") is not None else None,
+                max_sentences=int(args.get("max_sentences")) if args.get("max_sentences") is not None else None,
+                summarize=bool(args.get("summarize")) if args.get("summarize") is not None else None,
+            )
+        if name == "search_local_file":
+            return tool_search_local_file(
+                filename=(args.get("filename") if args.get("filename") is not None else None),
+                query=(args.get("query") if args.get("query") is not None else None),
+            )
+        return f"Outil inconnu: {name}"
+    except Exception as e:
+        return f"Erreur dans l'outil {name}: {e}"
+
 
 @app.after_request
 def add_cors_headers(resp):
@@ -303,18 +433,17 @@ def chat():
     # Partir des messages fournis par le client s'ils existent
     base_messages: List[Dict[str, Any]] = []
     if isinstance(messages, list):
-        # Conserver l'ordre de création, et ne transmettre que les messages valides non vides
+        # Conserver l'ordre de création et préserver les messages spécifiques aux outils
+        # (assistant avec tool_calls, messages role "tool", etc.)
         base_messages = []
         for m in messages:
-            if not (isinstance(m, dict) and "role" in m and "content" in m):
+            if not isinstance(m, dict):
                 continue
             role = m.get("role")
-            content = m.get("content")
-            if role not in ("user", "assistant"):
+            if role not in ("user", "assistant", "tool"):
                 continue
-            if not isinstance(content, str) or content == "":
-                continue
-            base_messages.append({"role": role, "content": content})
+            # Conserver tel quel pour garder tool_calls, tool_call_id, etc.
+            base_messages.append(m)
     if base_messages:
         # Remplacer le contenu du dernier message utilisateur par la version templatisée (prompt)
         replaced = False
@@ -340,71 +469,150 @@ def chat():
 
     def stream_ollama():
         try:
-            # Log de la requête sortante vers Ollama (sur stdout)
-            user_preview = ""
-            try:
-                for m in reversed(out_messages):
-                    if isinstance(m, dict) and m.get("role") == "user":
-                        c = m.get("content")
-                        if isinstance(c, str):
-                            user_preview = c[:200]
-                            break
-            except Exception:
-                pass
-            print(
-                f"[ollama request] POST {ollama_url} model={model} "
-                f"messages={len(out_messages)} "
-                f"user_preview={user_preview!r}",
-                flush=True,
-            )
+            # On boucle pour autoriser les appels d'outils (tool calls) successifs.
+            current_messages: List[Dict[str, Any]] = list(out_messages)
+            tools = get_tools_definitions()
+            iteration = 0
 
-            payload = {"model": model, "messages": out_messages, "stream": True}
-            # Taille de contexte explicite pour Ollama
-            payload["options"] = {"num_ctx": 131072}
-            payload_json = json.dumps(payload, ensure_ascii=False)
-            def _sh_single_quote_escape(s: str) -> str:
-                return s.replace("'", "'\"'\"'")
-            curl_cmd = f"curl -N -H 'Content-Type: application/json' -X POST '{ollama_url}' -d '{_sh_single_quote_escape(payload_json)}'"
-            print(f"[ollama curl] {curl_cmd}", flush=True)
+            def _user_preview_from(msgs: List[Dict[str, Any]]) -> str:
+                try:
+                    for m in reversed(msgs):
+                        if isinstance(m, dict) and m.get("role") == "user":
+                            c = m.get("content")
+                            if isinstance(c, str):
+                                return c[:200]
+                except Exception:
+                    pass
+                return ""
 
-            # Avant de contacter Ollama, envoyer au client la liste ordonnée des messages
-            # (uniquement les rôles user/assistant) utilisés pour cette requête.
-            try:
-                client_messages = [
-                    m for m in out_messages
-                    if isinstance(m, dict) and m.get("role") in ("user", "assistant")
-                ]
-                yield (json.dumps({"messages": client_messages}, ensure_ascii=False) + "\n").encode("utf-8")
-            except Exception as _e:
-                # En cas d'erreur, on continue sans bloquer le flux
-                pass
+            while True:
+                iteration += 1
 
-            headers = {"Content-Type": "application/json; charset=utf-8"}
-            with requests.post(
-                ollama_url,
-                data=payload_json.encode("utf-8"),
-                headers=headers,
-                stream=True,
-                timeout=(5, 600),
-            ) as r:
-                # Log du statut HTTP reçu
-                print(f"[ollama response] HTTP {r.status_code}", flush=True)
-                r.raise_for_status()
-                for line in r.iter_lines(chunk_size=8192, decode_unicode=False):
-                    if not line:
-                        continue
-                    # Log chaque ligne NDJSON de la réponse
+                user_preview = _user_preview_from(current_messages)
+                print(
+                    f"[ollama request] POST {ollama_url} model={model} "
+                    f"messages={len(current_messages)} iter={iteration} "
+                    f"user_preview={user_preview!r}",
+                    flush=True,
+                )
+
+                payload: Dict[str, Any] = {
+                    "model": model,
+                    "messages": current_messages,
+                    "stream": True,
+                    "tools": tools,
+                }
+                # Taille de contexte explicite pour Ollama
+                payload["options"] = {"num_ctx": 131072}
+                payload_json = json.dumps(payload, ensure_ascii=False)
+
+                def _sh_single_quote_escape(s: str) -> str:
+                    return s.replace("'", "'\"'\"'")
+
+                curl_cmd = f"curl -N -H 'Content-Type: application/json' -X POST '{ollama_url}' -d '{_sh_single_quote_escape(payload_json)}'"
+                print(f"[ollama curl] {curl_cmd}", flush=True)
+
+                # Informer le front des messages utilisés pour cette requête (inclure 'tool')
+                try:
+                    client_messages = [
+                        m for m in current_messages
+                        if isinstance(m, dict) and m.get("role") in ("user", "assistant", "tool")
+                    ]
+                    yield (json.dumps({"messages": client_messages}, ensure_ascii=False) + "\n").encode("utf-8")
+                except Exception:
+                    pass
+
+                headers = {"Content-Type": "application/json; charset=utf-8"}
+                last_message: Optional[Dict[str, Any]] = None
+                pending_tool_calls: List[Dict[str, Any]] = []
+
+                with requests.post(
+                    ollama_url,
+                    data=payload_json.encode("utf-8"),
+                    headers=headers,
+                    stream=True,
+                    timeout=(5, 600),
+                ) as r:
+                    print(f"[ollama response] HTTP {r.status_code}", flush=True)
+                    r.raise_for_status()
+                    for line in r.iter_lines(chunk_size=8192, decode_unicode=False):
+                        if not line:
+                            continue
+                        # Log et proxy de chaque ligne NDJSON
+                        try:
+                            _line_preview = line.decode("utf-8", errors="replace")
+                        except Exception:
+                            _line_preview = str(line)
+                        print(f"[ollama response line] {_line_preview}", flush=True)
+                        yield line + b"\n"
+
+                        # Détection d'éventuels appels d'outils
+                        try:
+                            obj = json.loads(_line_preview)
+                        except Exception:
+                            obj = None
+                        if isinstance(obj, dict):
+                            msg_obj = obj.get("message")
+                            if isinstance(msg_obj, dict):
+                                last_message = msg_obj
+                                tcs = msg_obj.get("tool_calls")
+                                if isinstance(tcs, list) and len(tcs) > 0:
+                                    pending_tool_calls = tcs
+                            if obj.get("done") is True:
+                                break
+
+                # Si l'assistant a demandé des outils, on les appelle puis on relance un tour
+                if pending_tool_calls:
+                    print(f"[tools] pending tool calls: {len(pending_tool_calls)}", flush=True)
+                    tool_results: List[Dict[str, Any]] = []
+                    for call in pending_tool_calls:
+                        func = call.get("function") or {}
+                        name = func.get("name") or ""
+                        args_raw = func.get("arguments")
+                        try:
+                            args = json.loads(args_raw) if isinstance(args_raw, str) else (args_raw or {})
+                        except Exception as e:
+                            print(f"[tools] arguments JSON parse error for {name}: {e}", flush=True)
+                            args = {}
+
+                        result_text = call_tool_minimal(name, args if isinstance(args, dict) else {})
+                        # Message de rôle 'tool' retourné au modèle, conforme au protocole
+                        tool_msg: Dict[str, Any] = {
+                            "role": "tool",
+                            "content": result_text,
+                            "tool_call_id": call.get("id") or call.get("call_id") or "",
+                            "name": name,
+                        }
+                        tool_results.append(tool_msg)
+
+                    # On ajoute le message assistant (avec tool_calls) et les résultats outillés
+                    if isinstance(last_message, dict):
+                        current_messages = current_messages + [last_message] + tool_results
+                    else:
+                        current_messages = current_messages + tool_results
+
+                    # Prévenir le front de l'état courant des messages (incluant 'tool')
                     try:
-                        _line_preview = line.decode("utf-8", errors="replace")
+                        client_messages2 = [
+                            m for m in current_messages
+                            if isinstance(m, dict) and m.get("role") in ("user", "assistant", "tool")
+                        ]
+                        yield (json.dumps({"messages": client_messages2}, ensure_ascii=False) + "\n").encode("utf-8")
                     except Exception:
-                        _line_preview = str(line)
-                    print(f"[ollama response line] {_line_preview}", flush=True)
-                    # Renvoie chaque ligne NDJSON telle quelle vers le client, suivie d'un \n
-                    yield line + b"\n"
+                        pass
+
+                    if iteration >= 5:
+                        print("[tools] max iterations reached, stopping tool loop", flush=True)
+                        break
+
+                    # Continuer la boucle pour que le modèle produise la réponse finale
+                    continue
+
+                # Pas d'appel d'outil -> terminé
+                break
+
         except Exception as e:
-            # Log de l'erreur (sur stdout)
             print(f"[ollama error] {e}", flush=True)
-            # En cas d'erreur, renvoyer une ligne JSON signalant l'erreur + un done:true pour fermer proprement côté front
             err = {"error": str(e), "done": True}
             yield (json.dumps(err) + "\n").encode("utf-8")
 
