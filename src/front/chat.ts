@@ -183,7 +183,12 @@ async function sendToApi(
             if (typeof m.content === "string") c = m.content;
             else if (m.delta && typeof m.delta.content === "string") c = m.delta.content;
             if (typeof m.thinking === "string") t = m.thinking;
+            else if (m.delta && typeof m.delta.thinking === "string") t = m.delta.thinking;
           }
+          // Certains builds d'Ollama émettent les deltas au niveau racine.
+          if (!c && obj.delta && typeof obj.delta.content === "string") c = obj.delta.content;
+          if (!t && obj.delta && typeof obj.delta.thinking === "string") t = obj.delta.thinking;
+
           if (!c && typeof obj.response === "string") c = obj.response;
           if (!c && typeof obj.content === "string") c = obj.content;
           if (!t && typeof obj.thinking === "string") t = obj.thinking;
