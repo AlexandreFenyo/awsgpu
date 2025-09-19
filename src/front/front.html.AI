@@ -94,9 +94,112 @@ Dans le back, quand tu reçois un message de l'utilisateur qui n'a pas de champ 
 
 Dans le back, quand tu reçois un message de l'utilisateur qui contient un champ "context", modifie-le avant de l'envoyer à ollama comme ceci : charge le contenu du fichier src/front/prompt2-do-not-edit.txt, remplace dans le contenu de ce fichier la chaîne {REQUEST} par le contenu du message de l'utilisateur, et c'est cela que tu dois envoyer à ollama.
 
+------------------------------------------------------------
+
+> /ask Est-ce que le serveur est multithreadé, c'est à dire qu'il peut répondre à deux questions simultanément ?
+
+  Non, pas dans l’état actuel. Tu lances le serveur avec app.run(host=..., port=..., debug=False) sans threaded=True, donc le serveur de dev Werkzeug traite une requête à la fois.
+
+  Pour gérer plusieurs questions simultanément (I/O bound), tu peux:
+
+ • Option rapide (dev): activer le multi‑thread
+    • Changer la ligne de démarrage:
+       • app.run(host=args.host, port=args.port, debug=False, threaded=True)
+ • Option recommandée (prod): utiliser un serveur WSGI
+    • Exemple Gunicorn (WSL/Linux), depuis src/front:
+       • gunicorn server:app -b 0.0.0.0:8111 --workers 2 --threads 8 --timeout 0
+       • Remarque: --timeout 0 évite les timeouts pendant le streaming; chaque requête de streaming monopolise un thread tant que la réponse d’Ollama arrive. Ajuste workers/threads selon la charge attendue.
+
+J'ai donc demandé :
+Active la première option, c'est à dire active le multi-thread : ce n'est pas un serveur de prod mais de tests, je ne veux donc pas utiliser de WSGI.
+
+------------------------------------------------------------
+
+Quand le serveur python reçoit une requête de l'utilisateur qui commence par le caractères "/" (slash), alors il n'interroge pas ollama mais renvoie vers une nouvelle fonction python nommée "command" qui prend en paramètres les différents mots qui suivent le "/" (slash) de l'utilisateur et qui sont séparés par des espaces.
+Cette nouvelle fonction va alors tester le première paramètre, et s'il vaut "help", alors elle va répondre au front en envoyant le contenu du fichier src/front/help.txt puis terminer la connexion.
+
+------------------------------------------------------------
+
+Le serveur python gère un tableau de variables de configuration globales. Ce tableau associe des variables représentées par des chaînes de caractères avec des valeurs représentées aussi par de telles chaînes. Par exemple, la variable "PAR2" peut valoir "DO". Une autre variable nommée "ABC5" peut aussi avoir une valeur, comme "AF". Quand une variable de configuration globale se voit affecter la valeur d'une chaîne de caractères vide, elle est alors supprimée du tableau des variables de configuration globales. Au lancement du serveur python, le tableau est vide. Quand la fonction nommée command reçoit en premier paramètre "show", alors elle va répondre au front en fournissant la liste des variables de configuration et leurs valeurs, par exemple comme ceci : "PAR2=DO;ABC5=AF". Quand la fonction nommée command reçoit en premier paramètre "set", alors elle va considérer le deuxième paramètre comme un nom de variable de configuration globale, la positionner dans le tableau avec le contenu du troisième paramètre s'il est présent ou supprimer la variable du tableau s'il n'y a pas de troisième paramètre. Elle va alors répondre en affichant le contenu du fichier src/front/setvar.txt.
+
+------------------------------------------------------------
+
+Quand le serveur python reçoit une requête de l'utilisateur qui commence par le caractères "/" (slash), qui n'est pas "help" et que le contenu de la variable d'environnement "USER" n'est pas "fenyo", alors ne traite pas la requête mais affiche le contenu du fichier src/front/accessdenied.txt puis termine la connexion.
+
+------------------------------------------------------------
+
+Rajoute dans le script du serveur python le traitement suivant.
+Dans toutes les requêtes vers ollama, rajoute dans la liste des messages un message avec le rôle system qui contient le contenu du fichier src/front/system.txt.
+
+------------------------------------------------------------
+
+Supprime dans le front et le serveur python tout ce qui servait à gérer le web service /api/generate, notamment le traitement de "context" dans les JSON.
+
+------------------------------------------------------------
+
+Dans le serveur, si le message de l'utilisateur n'est pas le premier, alors utilise src/front/prompt2-do-not-edit.txt au lieu de src/front/prompt-do-not-edit.txt
+
+------------------------------------------------------------
+
+Le front doit maintenant aussi envoyer les réponses qu'il reçoit du serveur, et le serveur doit envoyer à ollama ces réponses. Tous ces messages doivent être envoyés dans l'ordre où ils ont été créés.
+
+------------------------------------------------------------
+
+Dans le serveur python, à chaque fois que tu fais une requête à ollama, renvoie en JSON au client la liste ordonnée des messages de cette requête ollama dont les rôles sont user et assistant, avant de lui streamer les réponses d'ollama, afin qu'il stocke ces messages. Dans le front, stocke ces messages et quand tu fais une nouvelle requête vers le serveur python, renvoie ces messages dans l'ordre au serveur en y rajoutant le nouveau message à la fin.
+
+------------------------------------------------------------
+
+Dans le front, à chaque fois que la page est rechargée, repars de zéro pour les messages échangés passés que tu dois envoyer au serveur : n'envoie pas ce que tu avais stocké précédemment, oublie-le.
+
+------------------------------------------------------------
+
+Quand ollama réfléchit et qu'il streame sa réponse, il commence par renvoyer des textes de réponse vides dans lesquelles il met un texte lié à sa réflexion dans l'attribut "thinking" de son message.
+Voici un exemple : {"model":"gpt-oss:20b","created_at":"2025-09-18T17:42:51.3871706Z","message":{"role":"assistant","content":"","thinking":"D"},"done":false}
+Quand ollama réfléchit, affiche dans le front sa réflexion comme si c'était la réponse, mais en gris. Une fois qu'il donne un réponse, c'est à dire que thinking est vide ou n'est plus présent, efface la partie en gris. On ne doit donc voir, au final, que la réponse et non la réflexion. Mais on doit voir la réponse quand il réfléchit.
+
+------------------------------------------------------------
+
+Devant le texte en gris, écris : "Thinking: "
+
+------------------------------------------------------------
+
+Si la variable de configuration globale "FUN" vaut "DO", alors remplace src/front/system.txt par src/front/system-DO.txt, et si elle vaut SB, alors remplace src/front/system.txt par src/front/system-SB.txt.
+
+------------------------------------------------------------
+
+Dans le serveur python, quand tu reçois un message du front qui commence par "/" (le caractère slash), c'est à dire un message que tu vas traiter avec la fonction python nommée "command", ne le stocke pas dans la liste des messages que tu envoies à ollama ni dans celle que tu renvoies au front.
+
+------------------------------------------------------------
+
+Si la variable de configuration globale "FUN" vaut "DO", alors remplace src/front/system.txt par src/front/system-DO.txt, et si elle vaut SB, alors remplace src/front/system.txt par src/front/system-SB.txt.
+
+------------------------------------------------------------
+
+Si la variable de configuration globale "FILTER" vaut "NONE", alors utilise src/front/prompt-nofilter-do-not-edit.txt à la place de src/front/prompt-do-not-edit.txt et src/front/prompt2-nofilter-do-not-edit.txt à la place de src/front/prompt2-do-not-edit.txt.
+
+------------------------------------------------------------
+
+Si la variable de configuration globale "PROMPT" vaut "NONE", alors au lieu de choisir un template selon la position du message utilisateur (en utilisant prompt-do-not-edit.txt, prompt-nofilter-do-not-edit.txt, prompt2-do-not-edit.txt ou prompt2-nofilter-do-not-edit.txt), construis le prompt à envoyer à ollama uniquement avec le message de l'utilisateur.
+
+------------------------------------------------------------
+
+Dans le front, à chaque fois qu'une réponse streamée par ollama et relayée par le serveur contient un champ "prompt_eval_count", prend la valeur et affiche à droite du texte "Shift+Entrée pour une nouvelle ligne".
+Voici un exemple d'une telle réponse :
+{"model":"gpt-oss:20b","created_at":"2025-09-18T19:33:27.2499746Z","message":{"role":"assistant","content":""},"done_reason":"stop","done":true,"total_duration":30796209800,"load_duration":94726600,"prompt_eval_count":107601,"prompt_eval_duration":25770096400,"eval_count":562,"eval_duration":4763536700}
+Voici comment afficher cette réponse : au lieu d'afficher "Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne", il faut afficher "Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne • contexte current : 107601 tokens".
+Quand il n'y a pas encore eu de message avec un champ "prompt_eval_count", il faut afficher "Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne", il faut afficher "Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne • contexte courant : 0 token".
+
+------------------------------------------------------------
 
 
 
+
+
+Compte de 2 à 100 et appelle la valeur VAL. A chaque valeur VAL, décompte de 2 à ce nombre moins 1 et appelle cette nouvelle valeur VAL2. Regarde si VAL2 divise VAL. S'il advient que VAL2 divise VAL, alors arrête de décompte VAL2 et passe au VAL suivant. Si tu décomptes tous les VAL2, affiche VAL et dit que c'est un nombre premier.
+
+
+
+Fais un script python qui prend en paramètres l'adresse IP d'un serveur ollama, le nom d'un modèle de LLM et un texte à envoyer au serveur. Il se connecte au serveur à l'adresse IP indiquée pour invoquer le web service /api/chat en lui précisant le nom du modèle, la valeur 131072 pour l'argument num_ctx, le texte de l'utilisateur, et qui propose au modèles un outil nommé subquery via le rôle tool. Cet outil subquery prend un paramètre qui est une chaîne de caractères et il est implémenté dans le script python par une fonction nommée subquery, qui renvoie au modèle le texte qu'il a entré, transformé en majucules.
 
 
 
@@ -104,7 +207,7 @@ Dans le back, quand tu reçois un message de l'utilisateur qui contient un champ
 
 ------------------------------------------------------------
 
-solution via gpt-5-mini, effort medium, verbo high :
+solution via gpt-5-mini, effort medium, verbose high :
 On découpe en parties de 1000 lignes.
 
 Produis moi une sortie en pur texte, à partir du texte que je vais te fournir et qui sera au format Markdown. Je veux que tu me raccourcisses chaque paragraphe de ce texte sans perdre beaucoup d'informations. Tu ne dois pas modifier la structure des différents niveaux de titres. Fais donc des phrases réduites, en prenant soin de ne pas perdre d'information. Par exemple, la phrase "Cet axe porte notamment des ambitions sur Mon espace santé" peut être remplacée par "Axe portant les ambitions de Mon espace santé". Ou encore "La DIONIS est composée de 4 départements :" peut être remplacée en "Les 4 départements de La DIONIS :". Je veux que le texte que tu vas fournir fasse environ 50% de la taille du texte en entrée, il ne faut donc pas trop le réduire pour arriver à un texte de sortie qui fera, en nombre de mots, la moitié du texte d'entrée. Voici le texte à traiter :
@@ -166,4 +269,8 @@ Résumé visuel rapide
  • Haut: en‑tête (logo + titre).
  • Centre: liste défilante des messages (avatars + bulles user/assistant, animation de frappe).
  • Bas: barre de composition (textarea + bouton envoyer, aide sur les raccourcis et état).
+
+------------------------------------------------------------
+
+algo RAG final : dans rag.conf.json
 

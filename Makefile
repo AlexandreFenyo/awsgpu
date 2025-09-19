@@ -61,6 +61,11 @@ run-back: front
 	rm -f src/front/prompt-do-not-edit.txt
 	cp ../awsgpu-docs/prompt.txt src/front/prompt-do-not-edit.txt
 	cp ../awsgpu-docs/prompt2.txt src/front/prompt2-do-not-edit.txt
+	cp ../awsgpu-docs/prompt-nofilter.txt src/front/prompt-nofilter-do-not-edit.txt
+	cp ../awsgpu-docs/prompt2-nofilter.txt src/front/prompt2-nofilter-do-not-edit.txt
+	cp ../awsgpu-docs/system.txt src/front/system.txt
+	cp ../awsgpu-docs/system-DO.txt src/front/system-DO.txt
+	cp ../awsgpu-docs/system-SB.txt src/front/system-SB.txt
 	python3 src/front/server.py
 
 test:

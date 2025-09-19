@@ -1,0 +1,3 @@
+<tt>done.</tt><br/>
+<em>you should reload the page to reset the prompt history</em>
+

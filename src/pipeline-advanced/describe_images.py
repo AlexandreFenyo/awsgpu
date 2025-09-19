@@ -39,20 +39,6 @@ PROMPT_FR = (
     "Voici une image, fournis-moi un texte en Markdown qui décrit son contenu pour pouvoir "
     "l'inclure dans un chunk d'un système d'IA générative de type RAG. Propose donc une version adaptée à un chunk d'ingestion, avec les différentes informations contenues dans cette image, en explicitant par exemple les liens entre les différentes entités présentes dans cette image."
     "N'indique pas qu'il s'agit d'une description pour RAG, mets simplement la description. S'il y a des fautes d'orthographe dans ce qui est extrait de l'image, corrige-les. Ne donne pas d'indication sur les couleurs des entités présentes."
-#   "Ta réponse est encadrée des tags <IMAGE DESCRIPTION START> et <IMAGE DESCRIPTION END>, en voici un exemple : <IMAGE DESCRIPTION START>tu mets ici la description de l'image<IMAGE DESCRIPTION END>. N'indique pas qu'il s'agit d'une description pour RAG, mets simplement la description. S'il y a des fautes d'orthographe dans ce qui est extrait de l'image, corrige-les. Ne donne pas d'indication sur les couleurs des entités présentes."
-)
-
-PROMPT_OLLAMA_FR = (
-    "Tu es un expert en architectures informatiques. Analyse attentivement l'image fournie (schéma technique, ou réseau, ou de composants informatiques, ou de composants de sécurité, ou encore de concepts informatiques divers). Fais les tâches suivantes : "
-    "Résumé global en 2-3 phrases : fonction principale du schéma. "
-    "Composants détectés : pour chaque élément identifié, donne — nom/label exact tel qu'écrit sur l'image (entre guillemets), "
-     "type (ex. routeur, switch, firewall, serveur, VM, client, NAT, base de données), rôle attendu, adresse IP et ports si visibles. "
-    "Connexions et flux : liste chaque liaison en précisant origine → destination, protocole/port affiché (ou estimé), et direction du flux. "
-    "Séquence de fonctionnement : décris en 6-10 étapes numérotées le flux principal de données ou la logique d'acheminement. "
-    "Suggestions d'amélioration/pratiques recommandées (top 3 prioritaires). "
-    "Éléments illisibles ou hypothèses : liste tout texte ou symbole que tu ne peux pas lire clairement et explique les hypothèses que tu fais pour l'analyse. "
-    "Ne fais pas d'inventions non justifiées : si tu n'es pas sûr d'un élément, indique explicitement 'incertain' et donne les raisons. "
-    "Fournis la réponse en texte clair."
 )
 
 # Correspond aux data URLs pour images base64, ex:
@@ -239,10 +225,7 @@ def describe_image_with_ollama(data_url: str) -> str:
             return "<!-- Impossible d'extraire l'image PNG pour Ollama -->"
         b64 = m.group("b64")
         payload = {
-            # "model": "Qwen2.5vl:32b",
-            # "model": "Qwen2.5vl:3b",
             "model": "Qwen2.5vl:72b",
-            # "prompt": PROMPT_OLLAMA_FR,
             "prompt": PROMPT_FR,
             "images": [b64],
             "stream": False,
@@ -253,7 +236,9 @@ def describe_image_with_ollama(data_url: str) -> str:
             host = ollama_host
         else:
             host = "172.22.64.1"
-    
+
+        exit(1)
+            
         req = _urlrequest.Request(
             "http://" + host + ":11434/api/generate",
             data=json.dumps(payload).encode("utf-8"),
@@ -325,7 +310,7 @@ def output_path_for(input_path: str) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Décris les images data URL dans un Markdown via OpenAI et les remplace par du texte."
+        description="Décris les images présentes dans un fichier Markdown et les remplace par du texte."
     )
     parser.add_argument("markdown_file", help="Chemin du fichier Markdown en entrée")
     parser.add_argument("-l", "--local", action="store_true", help="Utiliser Ollama local (modèle gpt-oss:20b) au lieu d'OpenAI")

@@ -339,7 +339,7 @@ function ChatApp() {
         h(
           "div",
           null,
-          `Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne • contexte current : ${promptEvalCount} ${promptEvalCount === 0 ? "token" : "tokens"}`
+          `Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne • Contexte courant : ${promptEvalCount} ${promptEvalCount === 0 ? "/ 131072 tokens" : "/ 131072 tokens"}`
         )
       ),
       h(

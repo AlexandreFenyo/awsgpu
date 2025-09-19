@@ -1,0 +1,13 @@
+<tt>
+<b>&copy; Alexandre Fenyo 2025 - All Rights Reserved - <a href="https://fenyo.net">https://fenyo.net</a></b><br/>
+INTERNAL MONITOR<br/>
+available commands:<br/>
+- <b>/help</b>: show this message<br/>
+- <b>/show</b>: show variable values<br/>
+- <b>/set VARNAME VALUE</b>: set value of VARNAME<br/>
+- <b>/set VARNAME</b>: clear VARNAME<br/>
+available variables:<br/>
+- <b>FUN</b> (values: DO, SB)<br/>
+- <b>FILTER</b> (value: NONE)<br/>
+- <b>PROMPT</b> (value: NONE)<br/>
+</tt>
