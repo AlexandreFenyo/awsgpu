@@ -174,15 +174,24 @@ async function sendToApi(
         }
         // Flux de génération chat d'Ollama
         // 1) Traiter d'abord les deltas de message (certains modèles n'envoient le contenu qu'à la dernière ligne done:true)
-        if (obj && obj.message && typeof obj.message === "object") {
-          const c: string = typeof obj.message.content === "string" ? obj.message.content : "";
-          const t: string = typeof (obj.message as any).thinking === "string" ? (obj.message as any).thinking : "";
+        if (obj) {
+          // Extraire les deltas possibles selon les variantes d'Ollama
+          let c = "";
+          let t = "";
+          const m: any = obj.message;
+          if (m && typeof m === "object") {
+            if (typeof m.content === "string") c = m.content;
+            else if (m.delta && typeof m.delta.content === "string") c = m.delta.content;
+            if (typeof m.thinking === "string") t = m.thinking;
+          }
+          if (!c && typeof obj.response === "string") c = obj.response;
+          if (!c && typeof obj.content === "string") c = obj.content;
+          if (!t && typeof obj.thinking === "string") t = obj.thinking;
 
           // Si Ollama "réfléchit", il envoie thinking (delta) et content vide.
           if (t && !c) {
             assistantThinking += t;
             onThinking(t, true); // append
-            continue;
           }
 
           // Dès qu'on reçoit du contenu (réponse), on efface la réflexion affichée.
