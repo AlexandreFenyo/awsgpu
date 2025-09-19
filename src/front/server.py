@@ -31,9 +31,8 @@ CONFIG_LOCK = RLock()
 
 # Outils (tools) - définitions et implémentations minimales
 def _tool_def_search_web() -> dict:
-    # Définition telle que demandée par l'utilisateur
+    # Définition au format "function" attendu par Ollama (sans clé 'type' imbriquée)
     return {
-        "type": "function",
         "name": "search_web",
         "description": "Search the web and return top results",
         "parameters": {
@@ -56,7 +55,6 @@ def _tool_def_search_web() -> dict:
 
 def _tool_def_fetch_content() -> dict:
     return {
-        "type": "function",
         "name": "fetch_content",
         "description": "Fetch and extract textual content from a given URL",
         "parameters": {
@@ -85,7 +83,6 @@ def _tool_def_fetch_content() -> dict:
 
 def _tool_def_search_local_file() -> dict:
     return {
-        "type": "function",
         "name": "search_local_file",
         "description": "Search for information contained in a local file",
         "parameters": {
@@ -395,8 +392,11 @@ def chat():
                 tmpl_filename = "prompt2-nofilter-do-not-edit.txt" if use_nofilter else "prompt2-do-not-edit.txt"
             tmpl_path = HERE / tmpl_filename
             template = tmpl_path.read_text(encoding="utf-8")
-            prompt = template.replace("{REQUEST}", prompt)
-            print(f"[prompt template] applied from {tmpl_path}", flush=True)
+            if "{REQUEST}" in template:
+                prompt = template.replace("{REQUEST}", prompt)
+                print(f"[prompt template] applied from {tmpl_path}", flush=True)
+            else:
+                print(f"[prompt template] placeholder {{REQUEST}} missing in {tmpl_path}; using raw prompt", flush=True)
         except Exception as e:
             print(f"[prompt template] error: {e}; using raw prompt", flush=True)
 
