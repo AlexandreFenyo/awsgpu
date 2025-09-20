@@ -478,11 +478,13 @@ def chat():
 
     app.logger.info("Streaming from Ollama %s with model=%s, in_messages=%d, out_messages=%d", ollama_url, model, len(messages), len(out_messages))
 
+    enable_tools = bool(app.config.get("ENABLE_TOOLS", False))
+
     def stream_ollama():
         try:
             # On boucle pour autoriser les appels d'outils (tool calls) successifs.
             current_messages: List[Dict[str, Any]] = list(out_messages)
-            tools = get_tools_definitions()
+            tools = get_tools_definitions() if enable_tools else None
             iteration = 0
             saw_done = False
 
@@ -512,8 +514,9 @@ def chat():
                     "model": model,
                     "messages": current_messages,
                     "stream": True,
-                    "tools": tools,
                 }
+                if enable_tools and tools:
+                    payload["tools"] = tools
                 # Taille de contexte explicite pour Ollama
                 payload["options"] = {"num_ctx": 131072}
                 payload_json = json.dumps(payload, ensure_ascii=False)
@@ -575,7 +578,7 @@ def chat():
                                 break
 
                 # Si l'assistant a demandé des outils, on les appelle puis on relance un tour
-                if pending_tool_calls:
+                if enable_tools and pending_tool_calls:
                     print(f"[tools] pending tool calls: {len(pending_tool_calls)}", flush=True)
                     tool_results: List[Dict[str, Any]] = []
                     for call in pending_tool_calls:
@@ -666,6 +669,12 @@ def parse_args():
         action="store_true",
         help="Active le niveau de logs DEBUG.",
     )
+    parser.add_argument(
+        "-t",
+        "--tools",
+        action="store_true",
+        help="Active l'exposition des tools à Ollama (désactivé par défaut).",
+    )
     return parser.parse_args()
 
 
@@ -676,6 +685,9 @@ def main():
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     app.logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+
+    app.config["ENABLE_TOOLS"] = bool(args.tools)
+    app.logger.info("Tools %s", "activés" if app.config["ENABLE_TOOLS"] else "désactivés")
 
     app.logger.info("Démarrage du serveur sur http://%s:%s", args.host, args.port)
     app.run(host=args.host, port=args.port, debug=False, threaded=True)
