@@ -191,6 +191,120 @@ Quand il n'y a pas encore eu de message avec un champ "prompt_eval_count", il fa
 
 ------------------------------------------------------------
 
+Ajoute la possibilité de permettre au modèle qui tourne sur ollama d'invoquer des outils (tools). Pour cela, définit les trois outils suivants :
+
+1- search_web :
+Il est défini comme ceci :
+{
+  "type": "function",
+  "name": "search_web",
+  "description": "Search the web and return top results",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Query to search on the web"
+      },
+      "num_results": {
+        "type": "integer",
+        "description": "Number of results to return",
+        "minimum": 1,
+        "maximum": 20
+      }
+    },
+    "required": [
+      "query"
+    ]
+  }
+}
+
+2- fetch_content :
+Il est défini comme ceci :
+{
+  "type": "function",
+  "name": "fetch_content",
+  "description": "Fetch and extract textual content from a given URL",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "URL of the page to fetch"
+      },
+      "max_chars": {
+        "type": "integer",
+        "description": "Maximum number of characters to extract (optionnel)"
+      },
+      "max_sentences": {
+        "type": "integer",
+        "description": "Maximum number of sentences to extract (optionnel)"
+      },
+      "summarize": {
+        "type": "boolean",
+        "description": "Return a summary instead of full text (optionnel)"
+      }
+    },
+    "required": [
+      "url"
+    ]
+  }
+}
+
+3- search_local_file :
+Il est défini comme ceci :
+{
+  "type": "function",
+  "name": "search_local_file",
+  "description": "Search for information contained in a local file",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "filename": {
+        "type": "string",
+        "description": "The file name to search in"
+      },
+      "query": {
+        "type": "string",
+        "description": "Query for searching within the local file"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  }
+}
+
+Fais une implémentation minimale dans le serveur python de chacun de ces outils. Pour le premier, renvoie le texte "http://fenyo.net". Pour le second, renvoie "voici le contenu". Pour le troisième, renvoie "ceci est le contenu du fichier local".
+
+Fais en sorte que les invocations à ollama incluent des outils. Quand ollama veut invoquer un de ces outils, appelle l'implémentation minimale et renvoie le résultat à ollama, en suivant le protocole d'invocation des outils. Fais en sorte de prendre en compte ces nouveautés dans le front : il faut lui envoyer aussi ces messages spécifiques de l'invocation des outils, et il faut qu'il les traite comme les autres messages, pour les renvoyer quand il fait une nouvelle requête. Tout doit continuer à être streamé correctement depuis ollama jusqu'à la page web du front.
+
+------------------------------------------------------------
+
+Ajoute dans le serveur python une option -t (--tools).
+Si elle n'est pas invoquée, alors ne présente pas à ollama la possibilité d'utiliser les tools.
+
+------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

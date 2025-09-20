@@ -1,0 +1,55 @@
+
+pip install --upgrade ollama-mcp-bridge
+
+(awsgpu-py3.13) W11% ollama-mcp-bridge --config MCP/mcp-config.json --ollama-url http://192.168.0.21:11434
+npm install -g @modelcontextprotocol/server-filesystem
+npm install -g @modelcontextprotocol/server-brave-search
+npm install -g @modelcontextprotocol/server-github
+npm install -g @modelcontextprotocol/server-memory
+npm install -g @patruff/server-flux
+npm install -g @patruff/server-gmail-drive
+
+mcp-config.json:
+{
+    "mcpServers": {
+	"weather": {
+	    "command": "python",
+	    "args": [
+		"mock-weather-mcp-server.py"
+	    ]
+	},
+	"filesystem": {
+	    "command": "npx",
+	    "args": [
+		"@modelcontextprotocol/server-filesystem",
+		"/tmp"
+	    ]
+	}
+    }
+}
+
+sans weather:
+mcp-config.json:
+{
+    "mcpServers": {
+	"filesystem": {
+	    "command": "npx",
+	    "args": [
+		"@modelcontextprotocol/server-filesystem",
+		"/tmp"
+	    ]
+	}
+    }
+}
+
+npx @modelcontextprotocol/server-filesystem /tmp
+
+
+curl -N -H 'Content-Type: application/json' -X POST 'http://192.168.0.21:11434/api/chat' -d '{"model": "gpt-oss:20b", "messages": [{"role": "user", "content": "Combien font 2 + 2 ?"}], "stream": true, "options": {"num_ctx": 131072}}'
+
+curl -N -H 'Content-Type: application/json' -X POST 'http://127.0.0.1:8000/api/chat' -d '{"model": "gpt-oss:20b", "messages": [{"role": "user", "content": "Combien font 2 + 2 ?"}], "stream": false, "options": {"num_ctx": 131072}}'
+
+(awsgpu-py3.13) W11% curl -N -H 'Content-Type: application/json' -X POST 'http://127.0.0.1:8000/api/chat' -d '{"model": "gpt-oss:20b", "messages": [{"role": "user", "content": "Quels sont les noms des fichiers de /tmp ?"}], "stream": false, "options": {"num_ctx": 131072}}'
+
+OLLAMA_URL=http://192.168.0.21:11434/api/chat python src/front/server.py
+OLLAMA_URL=http://127.0.0.1:8000/api/chat python src/front/server.py
