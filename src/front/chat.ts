@@ -142,6 +142,7 @@ async function sendToApi(
     let assistantFull = "";
     let assistantThinking = "";
     let msgsFromServer: any[] | null = null;
+    let ignoreNextDoneBecauseOfToolCall = false;
 
     // Lecture incrémentale des lignes NDJSON
     while (true) {
@@ -184,6 +185,10 @@ async function sendToApi(
             else if (m.delta && typeof m.delta.content === "string") c = m.delta.content;
             if (typeof m.thinking === "string") t = m.thinking;
             else if (m.delta && typeof m.delta.thinking === "string") t = m.delta.thinking;
+            // Si l'assistant demande un outil, ignorer le prochain done:true (fin de première étape)
+            if (Array.isArray((m as any).tool_calls) && (m as any).tool_calls.length > 0) {
+              ignoreNextDoneBecauseOfToolCall = true;
+            }
           }
           // Certains builds d'Ollama émettent les deltas au niveau racine.
           if (!c && obj.delta && typeof obj.delta.content === "string") c = obj.delta.content;
@@ -213,10 +218,15 @@ async function sendToApi(
         // 2) Puis gérer le signal de fin. Ainsi, si le contenu n'arrive qu'à la dernière ligne (done:true),
         // on l'a déjà intégré dans assistantFull avant de terminer.
         if (obj?.done === true) {
-          onDone(assistantFull, msgsFromServer ?? [...serverHistory, { role: "user", content: newUserText }]);
-          // Ne pas annuler explicitement le flux côté navigateur pour éviter NS_BASE_STREAM_CLOSED.
-          // On laisse le serveur fermer proprement le flux.
-          return;
+          if (ignoreNextDoneBecauseOfToolCall) {
+            // Première étape terminée (tool-call). On attend la suite du flux avec les résultats de l'outil.
+            ignoreNextDoneBecauseOfToolCall = false;
+          } else {
+            onDone(assistantFull, msgsFromServer ?? [...serverHistory, { role: "user", content: newUserText }]);
+            // Ne pas annuler explicitement le flux côté navigateur pour éviter NS_BASE_STREAM_CLOSED.
+            // On laisse le serveur fermer proprement le flux.
+            return;
+          }
         }
       }
     }
