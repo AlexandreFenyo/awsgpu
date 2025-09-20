@@ -568,13 +568,18 @@ def chat():
                             obj = None
                         if isinstance(obj, dict):
                             msg_obj = obj.get("message")
+                            had_tool_calls = False
                             if isinstance(msg_obj, dict):
                                 last_message = msg_obj
                                 tcs = msg_obj.get("tool_calls")
                                 if isinstance(tcs, list) and len(tcs) > 0:
                                     pending_tool_calls = tcs
+                                    had_tool_calls = True
                             if obj.get("done") is True:
-                                saw_done = True
+                                if had_tool_calls:
+                                    print("[ollama response] done:true ignored due to tool_calls present", flush=True)
+                                else:
+                                    saw_done = True
                                 break
 
                 # Si l'assistant a demandé des outils, on les appelle puis on relance un tour

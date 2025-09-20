@@ -180,6 +180,7 @@ async function sendToApi(
           let c = "";
           let t = "";
           const m: any = obj.message;
+          let hadToolCalls = false;
           if (m && typeof m === "object") {
             if (typeof m.content === "string") c = m.content;
             else if (m.delta && typeof m.delta.content === "string") c = m.delta.content;
@@ -188,7 +189,13 @@ async function sendToApi(
             // Si l'assistant demande un outil, ignorer le prochain done:true (fin de première étape)
             if (Array.isArray((m as any).tool_calls) && (m as any).tool_calls.length > 0) {
               ignoreNextDoneBecauseOfToolCall = true;
+              hadToolCalls = true;
             }
+          }
+          // Par sécurité, si tool_calls est au niveau racine (cas atypique), appliquer la même logique
+          if (!hadToolCalls && Array.isArray((obj as any).tool_calls) && (obj as any).tool_calls.length > 0) {
+            ignoreNextDoneBecauseOfToolCall = true;
+            hadToolCalls = true;
           }
           // Certains builds d'Ollama émettent les deltas au niveau racine.
           if (!c && obj.delta && typeof obj.delta.content === "string") c = obj.delta.content;
