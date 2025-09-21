@@ -180,7 +180,6 @@ async function sendToApi(
           let c = "";
           let t = "";
           const m: any = obj.message;
-          let hadToolCalls = false;
           if (m && typeof m === "object") {
             if (typeof m.content === "string") c = m.content;
             else if (m.delta && typeof m.delta.content === "string") c = m.delta.content;
@@ -189,13 +188,7 @@ async function sendToApi(
             // Si l'assistant demande un outil, ignorer le prochain done:true (fin de première étape)
             if (Array.isArray((m as any).tool_calls) && (m as any).tool_calls.length > 0) {
               ignoreNextDoneBecauseOfToolCall = true;
-              hadToolCalls = true;
             }
-          }
-          // Par sécurité, si tool_calls est au niveau racine (cas atypique), appliquer la même logique
-          if (!hadToolCalls && Array.isArray((obj as any).tool_calls) && (obj as any).tool_calls.length > 0) {
-            ignoreNextDoneBecauseOfToolCall = true;
-            hadToolCalls = true;
           }
           // Certains builds d'Ollama émettent les deltas au niveau racine.
           if (!c && obj.delta && typeof obj.delta.content === "string") c = obj.delta.content;
@@ -225,9 +218,7 @@ async function sendToApi(
         // 2) Puis gérer le signal de fin. Ainsi, si le contenu n'arrive qu'à la dernière ligne (done:true),
         // on l'a déjà intégré dans assistantFull avant de terminer.
         if (obj?.done === true) {
-          // Si le serveur force la finalisation (ex: tools désactivés), ne pas ignorer.
-          const forceFinalize = obj && obj.final === true;
-          if (ignoreNextDoneBecauseOfToolCall && !forceFinalize) {
+          if (ignoreNextDoneBecauseOfToolCall) {
             // Première étape terminée (tool-call). On attend la suite du flux avec les résultats de l'outil.
             ignoreNextDoneBecauseOfToolCall = false;
           } else {
@@ -316,14 +307,7 @@ function ChatApp() {
           );
         },
         (assistantText, msgsForServer) => {
-          const arr = Array.isArray(msgsForServer) ? msgsForServer : [];
-          const last = arr.length > 0 ? arr[arr.length - 1] : null;
-          if (last && typeof last === "object" && (last as any).role === "assistant") {
-            // Le serveur a déjà inclus le dernier message assistant (ex: tool_calls sans tools activés)
-            setServerHistory(arr);
-          } else {
-            setServerHistory([...arr, { role: "assistant", content: assistantText }]);
-          }
+          setServerHistory([...msgsForServer, { role: "assistant", content: assistantText }]);
         },
         (count) => {
           setPromptEvalCount(count);

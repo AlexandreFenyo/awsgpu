@@ -286,6 +286,19 @@ Si elle n'est pas invoquée, alors ne présente pas à ollama la possibilité d'
 
 ------------------------------------------------------------
 
+Dans le serveur python, quand on reçoit un message d'ollama qui contient un champ nommé "tool_calls" et un champ "done" dont la valeur est true, alors ne prend pas en compte cette valeur true, car ce n'est pas le dernier message qui sera reçu du serveur ollama.
+Applique la même logique dans le front.
+
+Voici un exemple d'un tel message envoyé par ollama :
+{"model": "gpt-oss:20b", "created_at": "2025-09-20T23:32:46.2094046Z", "message": {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "filesystem.list_directory", "arguments": {"path": "/tmp/tst"}}}]}, "done_reason": "stop", "done": true, "total_duration": 976683700, "load_duration": 82631600, "prompt_eval_count": 1190, "prompt_eval_duration": 427364900, "eval_count": 103, "eval_duration": 466183800}
+
+------------------------------------------------------------
+
+Dans le serveur, si l'option -t (--tools) n'est pas invoquée, alors ne tente pas toi-même de traiter les tools. Ainsi, si un tool_calls est présent avec done:true, on transmet la ligne au front en forçant done:false (pour que le front ne considère pas la génération terminée), mais on n'interrompt pas la lecture et non ne passe pas à l'exécution des outils.
+
+------------------------------------------------------------
+
+Corrige le bug suivant. Le front n'envoie pas les messages
 
 
 
