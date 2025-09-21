@@ -594,7 +594,7 @@ def chat():
                                 except Exception as _e:
                                     print(f"[proxy] rewrite error: {_e}; original line suppressed", flush=True)
                                 # Terminer cette phase de génération pour exécuter les outils
-                                print("DEBUG : je clôture la connexion avec Ollama", flush=True)
+                                print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX DEBUG : je clôture la connexion avec Ollama", flush=True)
                                 break
 
                             # Sinon, on propage la ligne telle quelle
@@ -603,7 +603,7 @@ def chat():
                             # Gestion de fin de flux pour cette requête HTTP vers Ollama (sans tool_calls)
                             if obj.get("done") is True:
                                 saw_done = True
-                                print("DEBUG : je clôture la connexion avec Ollama", flush=True)
+                                print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX DEBUG : je clôture la connexion avec Ollama", flush=True)
                                 break
                         else:
                             # Ligne non-JSON ou non-objet: on la propage telle quelle
