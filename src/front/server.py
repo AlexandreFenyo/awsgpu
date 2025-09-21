@@ -553,34 +553,55 @@ def chat():
                     for line in r.iter_lines(chunk_size=8192, decode_unicode=False):
                         if not line:
                             continue
-                        # Log et proxy de chaque ligne NDJSON
+                        # Log et filtrage/proxy de chaque ligne NDJSON
                         try:
                             _line_preview = line.decode("utf-8", errors="replace")
                         except Exception:
                             _line_preview = str(line)
                         print(f"[ollama response line] {_line_preview}", flush=True)
-                        yield line + b"\n"
 
-                        # Détection d'éventuels appels d'outils
+                        # Détection d'éventuels appels d'outils et filtrage du done:true associé
                         try:
                             obj = json.loads(_line_preview)
                         except Exception:
                             obj = None
+
                         if isinstance(obj, dict):
-                            msg_obj = obj.get("message")
                             had_tool_calls = False
+                            msg_obj = obj.get("message")
                             if isinstance(msg_obj, dict):
                                 last_message = msg_obj
                                 tcs = msg_obj.get("tool_calls")
                                 if isinstance(tcs, list) and len(tcs) > 0:
                                     pending_tool_calls = tcs
                                     had_tool_calls = True
+                            # Cas atypique: tool_calls au niveau racine
+                            if not had_tool_calls:
+                                tcs_root = obj.get("tool_calls")
+                                if isinstance(tcs_root, list) and len(tcs_root) > 0:
+                                    had_tool_calls = True
+
+                            # Ne pas transmettre au front le done:true qui accompagne un tool_calls
+                            should_forward = True
+                            if obj.get("done") is True and had_tool_calls:
+                                should_forward = False
+                                print("[proxy] filtered done:true due to tool_calls present", flush=True)
+
+                            if should_forward:
+                                yield line + b"\n"
+
+                            # Gestion de fin de flux pour cette requête HTTP vers Ollama
                             if obj.get("done") is True:
                                 if had_tool_calls:
-                                    print("[ollama response] done:true ignored due to tool_calls present", flush=True)
+                                    # On ignore ce done:true (c'est la fin de la première étape),
+                                    # puis on sort de la boucle pour traiter les outils.
+                                    break
                                 else:
                                     saw_done = True
-                                break
+                                    break
+                        else:
+                            # Ligne non-JSON ou non-objet: on la propage telle quelle
+                            yield line + b"\n"
 
                 # Si l'assistant a demandé des outils, on les appelle puis on relance un tour
                 if enable_tools and pending_tool_calls:
