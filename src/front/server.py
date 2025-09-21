@@ -622,24 +622,9 @@ def chat():
                                     print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX DEBUG : je clôture la connexion avec Ollama", flush=True)
                                     break
                                 else:
-                                    # Tools désactivés: informer le front de l'état des messages incluant le message assistant (tool_calls)
-                                    try:
-                                        if isinstance(last_message, dict):
-                                            # Injecter le contenu accumulé dans le dernier message assistant (tool_calls)
-                                            last_msg = dict(last_message)
-                                            prev = last_msg.get("content")
-                                            if not isinstance(prev, str) or prev == "":
-                                                last_msg["content"] = assistant_acc
-                                            else:
-                                                last_msg["content"] = str(prev) + (assistant_acc or "")
-                                            current_messages = current_messages + [last_msg]
-                                        client_messages2 = [
-                                            m for m in current_messages
-                                            if isinstance(m, dict) and m.get("role") in ("user", "assistant", "tool")
-                                        ]
-                                        yield (json.dumps({"messages": client_messages2}, ensure_ascii=False) + "\n").encode("utf-8")
-                                    except Exception:
-                                        pass
+                                    # Tools désactivés:
+                                    # Ne pas persister le stub assistant avec tool_calls (content vide).
+                                    # On laisse le front ajouter le contenu accumulé (assistantFull) via onDone.
                                     continue
 
                             # Sinon, on propage la ligne telle quelle
