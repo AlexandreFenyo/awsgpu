@@ -598,6 +598,17 @@ def chat():
                                     print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX DEBUG : je clôture la connexion avec Ollama", flush=True)
                                     break
                                 else:
+                                    # Tools désactivés: informer le front de l'état des messages incluant le message assistant (tool_calls)
+                                    try:
+                                        if isinstance(last_message, dict):
+                                            current_messages = current_messages + [last_message]
+                                        client_messages2 = [
+                                            m for m in current_messages
+                                            if isinstance(m, dict) and m.get("role") in ("user", "assistant", "tool")
+                                        ]
+                                        yield (json.dumps({"messages": client_messages2}, ensure_ascii=False) + "\n").encode("utf-8")
+                                    except Exception:
+                                        pass
                                     continue
 
                             # Sinon, on propage la ligne telle quelle

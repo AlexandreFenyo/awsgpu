@@ -314,7 +314,14 @@ function ChatApp() {
           );
         },
         (assistantText, msgsForServer) => {
-          setServerHistory([...msgsForServer, { role: "assistant", content: assistantText }]);
+          const arr = Array.isArray(msgsForServer) ? msgsForServer : [];
+          const last = arr.length > 0 ? arr[arr.length - 1] : null;
+          if (last && typeof last === "object" && (last as any).role === "assistant") {
+            // Le serveur a déjà inclus le dernier message assistant (ex: tool_calls sans tools activés)
+            setServerHistory(arr);
+          } else {
+            setServerHistory([...arr, { role: "assistant", content: assistantText }]);
+          }
         },
         (count) => {
           setPromptEvalCount(count);
