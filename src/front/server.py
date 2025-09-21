@@ -581,24 +581,28 @@ def chat():
                                 if isinstance(tcs_root, list) and len(tcs_root) > 0:
                                     had_tool_calls = True
 
-                            # Ne pas transmettre au front le done:true qui accompagne un tool_calls
-                            should_forward = True
+                            # Si un tool_calls est présent avec done:true, on transmet la ligne au front
+                            # en forçant done:false (pour que le front ne considère pas la génération terminée),
+                            # puis on interrompt la lecture pour passer à l'exécution des outils.
                             if obj.get("done") is True and had_tool_calls:
-                                should_forward = False
-                                print("[proxy] filtered done:true due to tool_calls present", flush=True)
+                                try:
+                                    mod = dict(obj)
+                                    mod["done"] = False
+                                    _rewritten = (json.dumps(mod, ensure_ascii=False) + "\n").encode("utf-8")
+                                    print("[proxy] rewriting done:true -> done:false due to tool_calls present", flush=True)
+                                    yield _rewritten
+                                except Exception as _e:
+                                    print(f"[proxy] rewrite error: {_e}; original line suppressed", flush=True)
+                                # Terminer cette phase de génération pour exécuter les outils
+                                break
 
-                            if should_forward:
-                                yield line + b"\n"
+                            # Sinon, on propage la ligne telle quelle
+                            yield line + b"\n"
 
-                            # Gestion de fin de flux pour cette requête HTTP vers Ollama
+                            # Gestion de fin de flux pour cette requête HTTP vers Ollama (sans tool_calls)
                             if obj.get("done") is True:
-                                if had_tool_calls:
-                                    # On ignore ce done:true (c'est la fin de la première étape),
-                                    # puis on sort de la boucle pour traiter les outils.
-                                    break
-                                else:
-                                    saw_done = True
-                                    break
+                                saw_done = True
+                                break
                         else:
                             # Ligne non-JSON ou non-objet: on la propage telle quelle
                             yield line + b"\n"
