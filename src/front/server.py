@@ -606,6 +606,8 @@ def chat():
                         else:
                             # Ligne non-JSON ou non-objet: on la propage telle quelle
                             yield line + b"\n"
+                else:
+                    print("DEBUG : Ollama a clôturé la connexion", flush=True)
 
                 # Si l'assistant a demandé des outils, on les appelle puis on relance un tour
                 if enable_tools and pending_tool_calls:
