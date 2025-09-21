@@ -540,6 +540,9 @@ def chat():
                 headers = {"Content-Type": "application/json; charset=utf-8"}
                 last_message: Optional[Dict[str, Any]] = None
                 pending_tool_calls: List[Dict[str, Any]] = []
+                # Accumulate assistant content deltas to ensure we can persist the assistant message
+                # into serverHistory even when tools are disabled (tool_calls stage).
+                assistant_acc: str = ""
 
                 with requests.post(
                     ollama_url,
@@ -581,6 +584,27 @@ def chat():
                                 if isinstance(tcs_root, list) and len(tcs_root) > 0:
                                     had_tool_calls = True
 
+                            # Accumuler les deltas de contenu assistant pour pouvoir les persister dans l'historique
+                            try:
+                                c = ""
+                                m = obj.get("message")
+                                if isinstance(m, dict):
+                                    d = m.get("delta")
+                                    if isinstance(d, dict) and isinstance(d.get("content"), str):
+                                        c = d.get("content") or ""
+                                    elif isinstance(m.get("content"), str):
+                                        c = m.get("content") or ""
+                                if not c and isinstance(obj.get("delta"), dict) and isinstance(obj["delta"].get("content"), str):
+                                    c = obj["delta"].get("content") or ""
+                                if not c and isinstance(obj.get("content"), str):
+                                    c = obj.get("content") or ""
+                                if not c and isinstance(obj.get("response"), str):
+                                    c = obj.get("response") or ""
+                                if c:
+                                    assistant_acc += c
+                            except Exception:
+                                pass
+
                             # Si un tool_calls est présent avec done:true, on transmet la ligne au front
                             # en forçant done:false (pour que le front ne considère pas la génération terminée),
                             # puis on interrompt la lecture pour passer à l'exécution des outils.
@@ -601,7 +625,14 @@ def chat():
                                     # Tools désactivés: informer le front de l'état des messages incluant le message assistant (tool_calls)
                                     try:
                                         if isinstance(last_message, dict):
-                                            current_messages = current_messages + [last_message]
+                                            # Injecter le contenu accumulé dans le dernier message assistant (tool_calls)
+                                            last_msg = dict(last_message)
+                                            prev = last_msg.get("content")
+                                            if not isinstance(prev, str) or prev == "":
+                                                last_msg["content"] = assistant_acc
+                                            else:
+                                                last_msg["content"] = str(prev) + (assistant_acc or "")
+                                            current_messages = current_messages + [last_msg]
                                         client_messages2 = [
                                             m for m in current_messages
                                             if isinstance(m, dict) and m.get("role") in ("user", "assistant", "tool")
