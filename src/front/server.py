@@ -593,9 +593,12 @@ def chat():
                                     yield _rewritten
                                 except Exception as _e:
                                     print(f"[proxy] rewrite error: {_e}; original line suppressed", flush=True)
-                                # Terminer cette phase de génération pour exécuter les outils
-                                print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX DEBUG : je clôture la connexion avec Ollama", flush=True)
-                                break
+                                # Si les tools sont activés, on clôture pour exécuter les outils; sinon on continue à lire le flux.
+                                if enable_tools:
+                                    print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX DEBUG : je clôture la connexion avec Ollama", flush=True)
+                                    break
+                                else:
+                                    continue
 
                             # Sinon, on propage la ligne telle quelle
                             yield line + b"\n"
