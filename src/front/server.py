@@ -619,12 +619,14 @@ def chat():
                                     print(f"[proxy] rewrite error: {_e}; original line suppressed", flush=True)
                                 # Si les tools sont activés, on clôture pour exécuter les outils; sinon on continue à lire le flux.
                                 if enable_tools:
-                                    print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX DEBUG : je clôture la connexion avec Ollama", flush=True)
+                                    print("DEBUG : je clôture la connexion avec Ollama", flush=True)
                                     break
                                 else:
-                                    # Tools désactivés:
-                                    # Ne pas persister le stub assistant avec tool_calls (content vide).
-                                    # On laisse le front ajouter le contenu accumulé (assistantFull) via onDone.
+                                    # Tools désactivés: terminer explicitement pour que le front persiste assistantFull maintenant.
+                                    try:
+                                        yield (json.dumps({"done": True, "final": True}, ensure_ascii=False) + "\n").encode("utf-8")
+                                    except Exception:
+                                        pass
                                     continue
 
                             # Sinon, on propage la ligne telle quelle

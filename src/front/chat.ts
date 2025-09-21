@@ -225,7 +225,9 @@ async function sendToApi(
         // 2) Puis gérer le signal de fin. Ainsi, si le contenu n'arrive qu'à la dernière ligne (done:true),
         // on l'a déjà intégré dans assistantFull avant de terminer.
         if (obj?.done === true) {
-          if (ignoreNextDoneBecauseOfToolCall) {
+          // Si le serveur force la finalisation (ex: tools désactivés), ne pas ignorer.
+          const forceFinalize = obj && obj.final === true;
+          if (ignoreNextDoneBecauseOfToolCall && !forceFinalize) {
             // Première étape terminée (tool-call). On attend la suite du flux avec les résultats de l'outil.
             ignoreNextDoneBecauseOfToolCall = false;
           } else {
