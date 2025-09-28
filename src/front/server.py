@@ -198,6 +198,12 @@ def ping():
     app.logger.info("GET /api/ping from %s", request.remote_addr)
     return jsonify({"pong": True})
 
+
+@app.route('/api/headers')
+def headers():
+    return jsonify(list(request.headers.items()))
+
+
 @app.route("/api/env", methods=["GET"])
 def env_vars():
     """
@@ -220,7 +226,8 @@ def user_env():
     Renvoie en JSON la valeur de la variable d'environnement USER.
     Sur certains systèmes (ex: Windows), 'USER' peut être absent; on essaie 'USERNAME'.
     """
-    user = os.environ.get("USER") or os.environ.get("USERNAME") or ""
+    # user = os.environ.get("HTTP_X_FORWARDED_USER") or ""
+    user = request.headers.get('X-Forwarded-User')
     app.logger.info("GET /api/user from %s -> USER=%r", request.remote_addr, user)
     return jsonify({"USER": user})
 
