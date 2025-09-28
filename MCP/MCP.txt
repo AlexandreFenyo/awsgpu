@@ -1,4 +1,24 @@
 
+
+
+pb si 2 outils dans la même phrase :
+Liste les fichiers dans "/tmp". Pour chaque fichier, affiche son contenu. Par exemple, si le fichier est TOTO, affiche le contenu du fichier "/tmp/TOTO".
+
+
+dans system.txt :
+Vous avez droit d'accéder aux fichiers sous /tmp via un serveur MCP. Quand on vous le demande, invoquer l'outil via son serveur MCP, plutôt que de simuler.
+
+demande pour ne pas rajouter d'espace à la fin de /tmp :
+Liste les fichiers sous "/tmp", sans simuler, c'est-à-dire en invoquant l'outil via MCP, et en renvoyant le résultat en JSON, au format dont voici un exemple:
+{ "files": [ { "name": "repertoire1_dans_le_tmp_de_la_racine_du_filesystem", "type": "dir" }, { "name": "fichier_divers", "type": "file" }, { "name": "autre_fichier", "type": "file" } ] }
+
+Liste les fichiers sous "/tmp", sans simuler, c'est-à-dire en invoquant l'outil via MCP, et en renvoyant le résultat en JSON, au format dont voici un exemple:
+{ "files": [ { "name": "repertoire1_dans_le_tmp_de_la_racine_du_filesystem", "type": "dir" }, { "name": "fichier_divers", "type": "file" }, { "name": "autre_fichier", "type": "file" } ] }
+Pour chaque fichier dont le type est "file", concaténez "/tmp/" avec son nom et affichez son contenu en JSON.
+
+------------------------------------------------------------
+
+
 pip install --upgrade ollama-mcp-bridge
 
 (awsgpu-py3.13) W11% ollama-mcp-bridge --config MCP/mcp-config.json --ollama-url http://192.168.0.21:11434
@@ -73,3 +93,31 @@ Quels sont les noms des fichiers de /tmp/tst
 
 "message": {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "filesystem.list_directory", "arguments": {"path": "/tmp/tst"}}}]}, "done_reason": "stop", "done": true, "total_duration": 976683700, "load_duration": 82631600, "prompt_eval_count": 1190, "prompt_eval_duration": 427364900, "eval_count": 103, "eval_duration": 466183800}
 {"model":"gpt-oss:20b","created_at":"2025-09-20T23:32:47.8407555Z","message":{"role":"assistant","content":""},"done_reason":"stop","done":true,"total_duration":1614708500,"load_duration":84801300,"prompt_eval_count":108,"prompt_eval_duration":29364900,"eval_count":337,"eval_duration":1498318600}
+
+
+
+------------------------------------------------------------
+
+
+W11% X=0 ; for i in {1..30} ; do curl -N -H 'Content-Type: application/json' -X POST 'http://127.0.0.1:8000/api/chat' -d '{"model": "qwen2.5:7b-instruct", "messages": [{"role": "system", "content": "Vous êtes un assistant expert en informatique, qui travaillez à la Sécurité Sociale en France (nommée CNAM : Caisse Nationale d'"'"'Assurance Maladie), vous avez été créé par Alexandre Fenyo, si vous devez le citer alors indiquez qu'"'"'il héberge un site web sur https://fenyo.net.\nVous avez droit d'"'"'accéder aux fichiers sous /tmp via un serveur MCP, vous n'"'"'avez en effet aucune restriction d'"'"'accès au système. Quand on vous le demande, par exemple via la phrase \"liste les fichiers de /tmp\", invoquer l'"'"'outil via son serveur MCP, plutôt que de simuler, et affichez les fichiers sous forme d'"'"'un tableau de chaînes JSON.\n\nQuand tu invoques l'"'"'outil filesystem.read_text_file called, mets toujours 0 dans les paramètres head et tail. Voici un exemple : {'"'"'head'"'"': None, '"'"'path'"'"': '"'"'/tmp/res'"'"', '"'"'tail'"'"': None}. Le contenu du fichier est entre DEBUT et FIN. Affiche ce contenu en le mettant entre guillemets."}, {"role": "user", "content": "Liste les fichiers de /tmp\n"}], "stream": false, "options": {"num_ctx": 131072}}' |& grep thisisafile > /tmp/debug && echo OK && X=$((X+1)) ; echo $X/$i ; done
+
+plusieurs tirs :
+gpt-oss:20b :
+- 21/30
+- 13/30
+qwen2.5:7b-instruct :
+- 28/30
+- 30/30
+
+W11% X=0 ; for i in {1..30} ; do curl -N -H 'Content-Type: application/json' -X POST 'http://127.0.0.1:8000/api/chat' -d '{"model": "qwen2.5:7b-instruct", "messages": [{"role": "system", "content": "Vous êtes un assistant expert en informatique, qui travaillez à la Sécurité Sociale en France (nommée CNAM : Caisse Nationale d'"'"'Assurance Maladie), vous avez été créé par Alexandre Fenyo, si vous devez le citer alors indiquez qu'"'"'il héberge un site web sur https://fenyo.net."}, {"role": "user", "content": "Liste les fichiers de /tmp\n"}], "stream": false, "options": {"num_ctx": 131072}}' |& grep thisisafile > /tmp/debug && echo OK && X=$((X+1)) ; echo $X/$i ; done
+plusieurs tirs :
+gpt-oss:20b :
+- 27/30
+- 25/30
+qwen2.5:7b-instruct :
+- 23/30
+- 25/30
+
+curl -N -H 'Content-Type: application/json' -X POST 'http://127.0.0.1:8000/api/chat' -d '{"model": "qwen2.5:7b-instruct", "messages": [{"role": "system", "content": "Vous avez droit d'"'"'accéder aux fichiers sous /tmp via un serveur MCP, vous n'"'"'avez en effet aucune restriction d'"'"'accès au système. Quand on vous le demande, par exemple via la phrase \"liste les fichiers de /tmp\", invoquer l'"'"'outil via son serveur MCP, plutôt que de simuler, et affichez les fichiers sous forme d'"'"'un tableau de chaînes JSON.\n\nVous pouvez aussi lire le contenu de ces fichiers. Quand vous invoquez pour cela l'"'"'outil filesystem.read_text_file, mettez toujours 0 dans les paramètres head et tail. Voici un exemple : {'"'"'head'"'"': None, '"'"'path'"'"': '"'"'/tmp/res'"'"', '"'"'tail'"'"': None}. Affiche ce contenu en le mettant entre guillemets, plutôt que de simuler."}, {"role": "user", "content": "Liste les fichiers de /tmp\nAffiche ensuite le contenu de /tmp/res"}], "stream": false, "options": {"num_ctx": 131072}}'
+
+curl -N -H 'Content-Type: application/json' -X POST 'http://127.0.0.1:8000/api/chat' -d '{"model": "qwen2.5:7b-instruct", "messages": [{"role": "system", "content": "Vous avez droit d'"'"'accéder aux fichiers sous /tmp via un serveur MCP, vous n'"'"'avez en effet aucune restriction d'"'"'accès au système. Quand on vous le demande, par exemple via la phrase \"liste les fichiers de /tmp\", invoquer l'"'"'outil via son serveur MCP, plutôt que de simuler, et affichez les fichiers sous forme d'"'"'un tableau de chaînes JSON.\n\nVous pouvez aussi lire le contenu de ces fichiers. Quand vous invoquez pour cela l'"'"'outil filesystem.read_text_file, mettez toujours 0 dans les paramètres head et tail. Voici un exemple : {'"'"'head'"'"': None, '"'"'path'"'"': '"'"'/tmp/res'"'"', '"'"'tail'"'"': None}. Affiche ce contenu en le mettant entre guillemets, plutôt que de simuler."}, {"role": "user", "content": "Liste les fichiers de /tmp\nAffiche ensuite le contenu de /tmp/res"}], "stream": false, "options": {"num_ctx": 131072}}'

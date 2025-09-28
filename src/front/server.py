@@ -479,6 +479,7 @@ def chat():
     app.logger.info("Streaming from Ollama %s with model=%s, in_messages=%d, out_messages=%d", ollama_url, model, len(messages), len(out_messages))
 
     enable_tools = bool(app.config.get("ENABLE_TOOLS", False))
+    enable_stream = bool(app.config.get("ENABLE_STREAM", False))
 
     def stream_ollama():
         try:
@@ -513,7 +514,7 @@ def chat():
                 payload: Dict[str, Any] = {
                     "model": model,
                     "messages": current_messages,
-                    "stream": True,
+                    "stream": enable_stream,
                 }
                 if enable_tools and tools:
                     payload["tools"] = tools
@@ -722,6 +723,12 @@ def parse_args():
         help="Port d'écoute (défaut: 8111, ou variable d'env PORT).",
     )
     parser.add_argument(
+        "-s",
+        "--stream",
+        action="store_true",
+        help="Active le mode stream d'Ollama.",
+    )
+    parser.add_argument(
         "-b",
         "--host",
         "--bind",
@@ -754,6 +761,9 @@ def main():
 
     app.config["ENABLE_TOOLS"] = bool(args.tools)
     app.logger.info("Tools %s", "activés" if app.config["ENABLE_TOOLS"] else "désactivés")
+
+    app.config["ENABLE_STREAM"] = bool(args.stream)
+    app.logger.info("Stream %s", "activé" if app.config["ENABLE_TOOLS"] else "désactivé")
 
     app.logger.info("Démarrage du serveur sur http://%s:%s", args.host, args.port)
     app.run(host=args.host, port=args.port, debug=False, threaded=True)

@@ -1,0 +1,8 @@
+
+Crée un script python qui se connecte à l'API chat du serveur ollama qui tourne à l'adresse IP 192.168.0.21 et sur le port 11434.
+Le script prend une question en paramètre. Il pose cette question à ollama.
+Ce script s'appuie sur la bibliothèques instructor (https://python.useinstructor.com/) pour invoquer le modèle gpt-oss:20b sur ollama,
+
+
+
+Je veux poser une question au modèle gpt-oss:20b que je fais tourner via mon installation locale d'ollama. Pour cela, je veux créer un script python qui prendra ma question en paramètres. Ma question invoque des tools, c'est pourquoi j'utilise ollama-mcp-bridge, qui se connecte à ollama. Mon script python devra donc se connecter à ollama-mcp-bridge et plutôt qu'à ollama. De temps en temps, ça ne marche pas, car le modèle ne comprend pas qu'il doit invoquer le tool. Je voudrais donc utiliser dans mon script la bibliothèque instructor (https://python.useinstructor.com/). Elle est censée faciliter l'interrogation d'un modèle pour récupérer des données structurées. J'ai deux types d'outils que je veux invoquer : un outil qui liste les fichiers dans un répertoire, je voudrais qu'il fournisse

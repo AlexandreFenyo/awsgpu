@@ -69,10 +69,11 @@ run-back: front
 	#echo > src/front/system.txt
 	cp ../awsgpu-docs/system-DO.txt src/front/system-DO.txt
 	cp ../awsgpu-docs/system-SB.txt src/front/system-SB.txt
-	python3 src/front/server.py
+	python3 src/front/server.py -s
 
 run-back-mcp: front
-	OLLAMA_URL=http://127.0.0.1:8000/api/chat python src/front/server.py -v
+	cp ../awsgpu-docs/system.txt src/front/system.txt
+	OLLAMA_URL=http://127.0.0.1:8000/api/chat python3 src/front/server.py -v
 
 run-mcp-bridge:
 	ollama-mcp-bridge --config MCP/mcp-config.json --ollama-url http://192.168.0.21:11434

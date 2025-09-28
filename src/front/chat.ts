@@ -15,8 +15,8 @@ type Msg = {
 
 const h = React.createElement;
 
-const API_URL = "https://fenyo.net/MES/api/chat";
-const USER_URL = "https://fenyo.net/MES/api/user";
+const API_URL = "https://www.fenyo.net/MES/api/chat";
+const USER_URL = "https://www.fenyo.net/MES/api/user";
 
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
