@@ -225,7 +225,10 @@ def describe_image_with_ollama(data_url: str) -> str:
             return "<!-- Impossible d'extraire l'image PNG pour Ollama -->"
         b64 = m.group("b64")
         payload = {
-            "model": "Qwen2.5vl:72b",
+            #"model": "Qwen2.5vl:72b",
+            #"model": "gpt-oss:20b",
+            #"model": "qwen2.5vl:7b",
+            "model": "qwen2.5vl:3b",
             "prompt": PROMPT_FR,
             "images": [b64],
             "stream": False,
@@ -237,16 +240,14 @@ def describe_image_with_ollama(data_url: str) -> str:
         else:
             host = "172.22.64.1"
 
-        exit(1)
-            
         req = _urlrequest.Request(
             "http://" + host + ":11434/api/generate",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        # timeout after 15 min
-        with _urlrequest.urlopen(req, timeout=1800) as resp:
+        # timeout after 3 min
+        with _urlrequest.urlopen(req, timeout=180) as resp:
             body = resp.read()
         data = json.loads(body.decode("utf-8"))
         content = data.get("response", "")

@@ -20,5 +20,6 @@ fi
 
 INPUT_FILE=$1
 
-ts-node ./src/pipeline-advanced/convert_to_markdown.ts "$INPUT_FILE"
+# ts-node ./src/pipeline-advanced/convert_to_markdown.ts "$INPUT_FILE"
+npx tsx ./src/pipeline-advanced/convert_to_markdown.ts "$INPUT_FILE"
 src/pipeline-advanced/html_to_markdown.py "$INPUT_FILE".html
