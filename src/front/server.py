@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from __future__ import annotations
 
 import argparse
@@ -28,142 +30,6 @@ FIXED_REPLY = (
 # Variables de configuration globales (clé/valeur en chaînes)
 CONFIG_VARS: Dict[str, str] = {}
 CONFIG_LOCK = RLock()
-
-# Outils (tools) - définitions et implémentations minimales
-def _tool_def_search_web() -> dict:
-    # Définition au format "function" attendu par Ollama (sans clé 'type' imbriquée)
-    return {
-        "name": "search_web",
-        "description": "Search the web and return top results",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Query to search on the web"
-                },
-                "num_results": {
-                    "type": "integer",
-                    "description": "Number of results to return",
-                    "minimum": 1,
-                    "maximum": 20
-                }
-            },
-            "required": ["query"]
-        }
-    }
-
-def _tool_def_fetch_content() -> dict:
-    return {
-        "name": "fetch_content",
-        "description": "Fetch and extract textual content from a given URL",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "url": {
-                    "type": "string",
-                    "description": "URL of the page to fetch"
-                },
-                "max_chars": {
-                    "type": "integer",
-                    "description": "Maximum number of characters to extract (optionnel)"
-                },
-                "max_sentences": {
-                    "type": "integer",
-                    "description": "Maximum number of sentences to extract (optionnel)"
-                },
-                "summarize": {
-                    "type": "boolean",
-                    "description": "Return a summary instead of full text (optionnel)"
-                }
-            },
-            "required": ["url"]
-        }
-    }
-
-def _tool_def_search_local_file() -> dict:
-    return {
-        "name": "search_local_file",
-        "description": "Search for information contained in a local file",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "filename": {
-                    "type": "string",
-                    "description": "The file name to search in"
-                },
-                "query": {
-                    "type": "string",
-                    "description": "Query for searching within the local file"
-                }
-            },
-            "required": ["query"]
-        }
-    }
-
-def get_tools_definitions() -> List[Dict[str, Any]]:
-    """
-    Retourne la liste des outils au format attendu par Ollama.
-    Ollama attend habituellement un objet { type: 'function', function: { name, description, parameters } }.
-    On enveloppe donc les définitions demandées dans une clé 'function'.
-    """
-    raw_defs = [
-        _tool_def_search_web(),
-        _tool_def_fetch_content(),
-        _tool_def_search_local_file(),
-    ]
-    wrapped = []
-    for d in raw_defs:
-        wrapped.append({
-            "type": "function",
-            "function": d,
-        })
-    return wrapped
-
-# Implémentations minimales
-def tool_search_web(query: str, num_results: Optional[int] = None) -> str:
-    return "http://fenyo.net"
-
-def tool_fetch_content(url: str, max_chars: Optional[int] = None, max_sentences: Optional[int] = None, summarize: Optional[bool] = None) -> str:
-    # Retourne un contenu JSON sérialisé (échappé) dans le champ content du message 'tool'
-    try:
-        payload = {
-            "url": url,
-            "content": "Ceci est la home page du serveur X11 du MIT",
-            "summary": "ce serveur n'est plus beaucoup utilisé de nos jours",
-        }
-        return json.dumps(payload, ensure_ascii=False)
-    except Exception as e:
-        return json.dumps({"error": f"Erreur lors du fetch_content: {e}"}, ensure_ascii=False)
-
-def tool_search_local_file(filename: Optional[str] = None, query: Optional[str] = None) -> str:
-    return "ceci est le contenu du fichier local"
-
-def call_tool_minimal(name: str, args: Dict[str, Any]) -> str:
-    """
-    Dispatcheur minimal vers les implémentations des outils.
-    """
-    try:
-        if name == "search_web":
-            return tool_search_web(
-                query=str(args.get("query", "")),
-                num_results=int(args.get("num_results")) if args.get("num_results") is not None else None,
-            )
-        if name == "fetch_content":
-            return tool_fetch_content(
-                url=str(args.get("url", "")),
-                max_chars=int(args.get("max_chars")) if args.get("max_chars") is not None else None,
-                max_sentences=int(args.get("max_sentences")) if args.get("max_sentences") is not None else None,
-                summarize=bool(args.get("summarize")) if args.get("summarize") is not None else None,
-            )
-        if name == "search_local_file":
-            return tool_search_local_file(
-                filename=(args.get("filename") if args.get("filename") is not None else None),
-                query=(args.get("query") if args.get("query") is not None else None),
-            )
-        return f"Outil inconnu: {name}"
-    except Exception as e:
-        return f"Erreur dans l'outil {name}: {e}"
 
 
 @app.after_request
@@ -283,13 +149,6 @@ def command_generator(args: List[str]):
         err = {"error": str(e), "done": True}
         yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
 
-
-def command(args: List[str]) -> Response:
-    """
-    Traite les commandes commençant par '/'.
-    Envoie un flux NDJSON compatible avec le front et termine la connexion.
-    """
-    return Response(stream_with_context(command_generator(args)), content_type="application/x-ndjson; charset=utf-8")
 
 @app.route("/api/chat", methods=["POST", "OPTIONS"])
 def chat():
@@ -451,16 +310,13 @@ def chat():
     # Partir des messages fournis par le client s'ils existent
     base_messages: List[Dict[str, Any]] = []
     if isinstance(messages, list):
-        # Conserver l'ordre de création et préserver les messages spécifiques aux outils
-        # (assistant avec tool_calls, messages role "tool", etc.)
         base_messages = []
         for m in messages:
             if not isinstance(m, dict):
                 continue
             role = m.get("role")
-            if role not in ("user", "assistant", "tool"):
+            if role not in ("user", "assistant"):
                 continue
-            # Conserver tel quel pour garder tool_calls, tool_call_id, etc.
             base_messages.append(m)
     if base_messages:
         # Remplacer le contenu du dernier message utilisateur par la version templatisée (prompt)
@@ -485,14 +341,11 @@ def chat():
 
     app.logger.info("Streaming from Ollama %s with model=%s, in_messages=%d, out_messages=%d", ollama_url, model, len(messages), len(out_messages))
 
-    enable_tools = bool(app.config.get("ENABLE_TOOLS", False))
     enable_stream = bool(app.config.get("ENABLE_STREAM", False))
 
     def stream_ollama():
         try:
-            # On boucle pour autoriser les appels d'outils (tool calls) successifs.
             current_messages: List[Dict[str, Any]] = list(out_messages)
-            tools = get_tools_definitions() if enable_tools else None
             iteration = 0
             saw_done = False
 
@@ -523,8 +376,6 @@ def chat():
                     "messages": current_messages,
                     "stream": enable_stream,
                 }
-                if enable_tools and tools:
-                    payload["tools"] = tools
                 # Taille de contexte explicite pour Ollama
                 payload["options"] = {"num_ctx": 131072}
                 payload_json = json.dumps(payload, ensure_ascii=False)
@@ -535,11 +386,11 @@ def chat():
                 curl_cmd = f"curl -N -H 'Content-Type: application/json' -X POST '{ollama_url}' -d '{_sh_single_quote_escape(payload_json)}'"
                 print(f"[ollama curl] {curl_cmd}", flush=True)
 
-                # Informer le front des messages utilisés pour cette requête (inclure 'tool')
+                # Informer le front des messages utilisés pour cette requête
                 try:
                     client_messages = [
                         m for m in current_messages
-                        if isinstance(m, dict) and m.get("role") in ("user", "assistant", "tool")
+                        if isinstance(m, dict) and m.get("role") in ("user", "assistant")
                     ]
                     yield (json.dumps({"messages": client_messages}, ensure_ascii=False) + "\n").encode("utf-8")
                 except Exception:
@@ -547,9 +398,7 @@ def chat():
 
                 headers = {"Content-Type": "application/json; charset=utf-8"}
                 last_message: Optional[Dict[str, Any]] = None
-                pending_tool_calls: List[Dict[str, Any]] = []
-                # Accumulate assistant content deltas to ensure we can persist the assistant message
-                # into serverHistory even when tools are disabled (tool_calls stage).
+                # Accumulate assistant content deltas to ensure we can persist the assistant message into serverHistory
                 assistant_acc: str = ""
 
                 with requests.post(
@@ -578,19 +427,9 @@ def chat():
                             obj = None
 
                         if isinstance(obj, dict):
-                            had_tool_calls = False
                             msg_obj = obj.get("message")
                             if isinstance(msg_obj, dict):
                                 last_message = msg_obj
-                                tcs = msg_obj.get("tool_calls")
-                                if isinstance(tcs, list) and len(tcs) > 0:
-                                    pending_tool_calls = tcs
-                                    had_tool_calls = True
-                            # Cas atypique: tool_calls au niveau racine
-                            if not had_tool_calls:
-                                tcs_root = obj.get("tool_calls")
-                                if isinstance(tcs_root, list) and len(tcs_root) > 0:
-                                    had_tool_calls = True
 
                             # Accumuler les deltas de contenu assistant pour pouvoir les persister dans l'historique
                             try:
@@ -613,34 +452,10 @@ def chat():
                             except Exception:
                                 pass
 
-                            # Si un tool_calls est présent avec done:true, on transmet la ligne au front
-                            # en forçant done:false (pour que le front ne considère pas la génération terminée),
-                            # puis on interrompt la lecture pour passer à l'exécution des outils.
-                            if obj.get("done") is True and had_tool_calls:
-                                try:
-                                    mod = dict(obj)
-                                    mod["done"] = False
-                                    _rewritten = (json.dumps(mod, ensure_ascii=False) + "\n").encode("utf-8")
-                                    print("[proxy] rewriting done:true -> done:false due to tool_calls present", flush=True)
-                                    yield _rewritten
-                                except Exception as _e:
-                                    print(f"[proxy] rewrite error: {_e}; original line suppressed", flush=True)
-                                # Si les tools sont activés, on clôture pour exécuter les outils; sinon on continue à lire le flux.
-                                if enable_tools:
-                                    print("DEBUG : je clôture la connexion avec Ollama", flush=True)
-                                    break
-                                else:
-                                    # Tools désactivés: terminer explicitement pour que le front persiste assistantFull maintenant.
-                                    try:
-                                        yield (json.dumps({"done": True, "final": True}, ensure_ascii=False) + "\n").encode("utf-8")
-                                    except Exception:
-                                        pass
-                                    continue
-
                             # Sinon, on propage la ligne telle quelle
                             yield line + b"\n"
 
-                            # Gestion de fin de flux pour cette requête HTTP vers Ollama (sans tool_calls)
+                            # Gestion de fin de flux pour cette requête HTTP vers Ollama
                             if obj.get("done") is True:
                                 saw_done = True
                                 print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX DEBUG : je clôture la connexion avec Ollama", flush=True)
@@ -651,57 +466,6 @@ def chat():
                     else:
                         print("DEBUG : Ollama a clôturé la connexion", flush=True)
 
-                # Si l'assistant a demandé des outils, on les appelle puis on relance un tour
-                if enable_tools and pending_tool_calls:
-                    print(f"[tools] pending tool calls: {len(pending_tool_calls)}", flush=True)
-                    tool_results: List[Dict[str, Any]] = []
-                    for call in pending_tool_calls:
-                        func = call.get("function") or {}
-                        name = func.get("name") or ""
-                        args_raw = func.get("arguments")
-                        try:
-                            args = json.loads(args_raw) if isinstance(args_raw, str) else (args_raw or {})
-                        except Exception as e:
-                            print(f"[tools] arguments JSON parse error for {name}: {e}", flush=True)
-                            args = {}
-
-                        result_text = call_tool_minimal(name, args if isinstance(args, dict) else {})
-                        # Message de rôle 'tool' retourné au modèle, conforme au protocole
-                        tool_msg: Dict[str, Any] = {
-                            "role": "tool",
-                            "content": result_text,
-                            "name": name,
-                        }
-                        # N'ajouter tool_call_id que s'il est fourni par le modèle
-                        tcid = call.get("id") or call.get("tool_call_id") or call.get("call_id")
-                        if isinstance(tcid, str) and tcid:
-                            tool_msg["tool_call_id"] = tcid
-                        tool_results.append(tool_msg)
-
-                    # On ajoute le message assistant (avec tool_calls) et les résultats outillés
-                    if isinstance(last_message, dict):
-                        current_messages = current_messages + [last_message] + tool_results
-                    else:
-                        current_messages = current_messages + tool_results
-
-                    # Prévenir le front de l'état courant des messages (incluant 'tool')
-                    try:
-                        client_messages2 = [
-                            m for m in current_messages
-                            if isinstance(m, dict) and m.get("role") in ("user", "assistant", "tool")
-                        ]
-                        yield (json.dumps({"messages": client_messages2}, ensure_ascii=False) + "\n").encode("utf-8")
-                    except Exception:
-                        pass
-
-                    if iteration >= 5:
-                        print("[tools] max iterations reached, stopping tool loop", flush=True)
-                        break
-
-                    # Continuer la boucle pour que le modèle produise la réponse finale
-                    continue
-
-                # Pas d'appel d'outil -> terminé
                 if not saw_done:
                     # Dans certains cas, assurer un évènement de fin pour le front
                     try:
@@ -749,12 +513,6 @@ def parse_args():
         action="store_true",
         help="Active le niveau de logs DEBUG.",
     )
-    parser.add_argument(
-        "-t",
-        "--tools",
-        action="store_true",
-        help="Active l'exposition des tools à Ollama (désactivé par défaut).",
-    )
     return parser.parse_args()
 
 
@@ -766,11 +524,7 @@ def main():
     )
     app.logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
-    app.config["ENABLE_TOOLS"] = bool(args.tools)
-    app.logger.info("Tools %s", "activés" if app.config["ENABLE_TOOLS"] else "désactivés")
-
     app.config["ENABLE_STREAM"] = bool(args.stream)
-    app.logger.info("Stream %s", "activé" if app.config["ENABLE_TOOLS"] else "désactivé")
 
     app.logger.info("Démarrage du serveur sur http://%s:%s", args.host, args.port)
     app.run(host=args.host, port=args.port, debug=False, threaded=True)

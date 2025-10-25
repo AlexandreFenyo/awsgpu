@@ -1,0 +1,3 @@
+
+Je voudrais un script python  basé sur instructor (la bibliothèque d'IA for Structured LLM Outputs, qui est ici https://python.useinstructor.com/), qui invoque ollama tournant sur 192.168.0.21, avec le modèle gpt-oss:20b, et qui lui pose une question qui est dans la variable question, cette question faisant renvoyer à ollama un tableau de chaînes de caractères en JSON. Instructor est là pour envoyer la question et parser à coup sûr le tableau dans la réponse dans un objet Python.
+

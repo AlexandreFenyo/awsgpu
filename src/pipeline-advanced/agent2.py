@@ -1,10 +1,12 @@
+#!/usr/bin/env python3
+
 from __future__ import annotations
 
 from typing import List
 from pydantic import BaseModel
 import instructor
 from openai import OpenAI
-
+from pathlib import Path
 
 class StringList(BaseModel):
     """Un simple conteneur pour une liste de chaînes."""
@@ -17,7 +19,7 @@ def build_client() -> OpenAI:
     pour forcer des sorties structurées.
     """
     base_client = OpenAI(
-        base_url="http://192.168.0.21:8000/v1",
+        base_url="http://192.168.0.21:11434/v1",
         api_key="ollama",  # Valeur factice pour compat OpenAI SDK
     )
     # JSON_SCHEMA est robuste pour demander strictement du JSON
@@ -56,7 +58,9 @@ def ask_question(question: str, model: str = "gpt-oss:20b") -> List[str]:
 
 
 # Variable question demandée
-question = "Donne 5 capitales européennes."
+#question = "Donne 5 capitales européennes."
+# /tmp/res est créé via des commandes décrites dans index.json.AI
+question = Path("/tmp/res").read_text(encoding='utf-8')
 
 if __name__ == "__main__":
     import json

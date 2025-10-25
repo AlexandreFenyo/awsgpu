@@ -3,6 +3,8 @@
 # Utilisation: scripts/oquery.sh <ip_ollama> <modele> <taille_contexte> <fichier>
 # Exemple:     scripts/oquery.sh 127.0.0.1 llama3 4096 prompt.txt
 
+# ./scripts/oquery.sh 192.168.0.21 gpt-oss:20b 132000 <(echo 'Décris l architecture de stockage de MESDMP ? Aide toi du texte suivant :' ; cat ../awsgpu-docs/collection/LLD_VMware.docx.html.md.converted.md)
+
 set -e
 set -u
 set -o pipefail
