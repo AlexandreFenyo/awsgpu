@@ -7,7 +7,5 @@ available commands:<br/>
 - <b>/set VARNAME VALUE</b>: set value of VARNAME<br/>
 - <b>/set VARNAME</b>: clear VARNAME<br/>
 available variables:<br/>
-- <b>FUN</b> (values: DO, SB)<br/>
-- <b>FILTER</b> (value: NONE)<br/>
-- <b>PROMPT</b> (value: NONE)<br/>
+- <b>SYSTEM</b> (values: S1, S2)<br/>
 </tt>

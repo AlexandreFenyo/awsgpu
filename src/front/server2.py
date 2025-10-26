@@ -8,6 +8,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+import subprocess
 
 from flask import Flask, jsonify, request, Response, stream_with_context
 import requests
@@ -33,6 +34,21 @@ FIXED_REPLY = (
 # Variables de configuration globales (clé/valeur en chaînes)
 CONFIG_VARS: Dict[str, str] = {}
 CONFIG_LOCK = RLock()
+
+
+# Invoque un shell script pour enrichir le contexte à partir d'une question
+def run_rag(param: str) -> str:
+    # param sera accessible dans le script zsh via $1
+    proc = subprocess.run(
+        HERE / "rag.sh",
+        input=param,
+        stdout=subprocess.PIPE,
+        text=True,          # décode stdout en str
+        encoding="utf-8"    # assure UTF-8
+    )
+    if proc.returncode != 0:
+        print(f"RAG subprocess exited with {proc.returncode}")
+    return proc.stdout
 
 
 @app.after_request
@@ -192,7 +208,7 @@ def chat():
     if not isinstance(prompt, str):
         prompt = str(prompt)
 
-    # Commande slash: bypass Ollama et traiter via 'command'
+    # Commande slash: bypass Ollama et traiter via command_generator()
     p = prompt.strip()
     if p.startswith("/"):
         args = p[1:].strip().split() if len(p) > 1 else []
@@ -243,50 +259,21 @@ def chat():
 
         return Response(stream_with_context(gen_slash()), content_type="application/x-ndjson; charset=utf-8")
 
-    # Modifie le prompt (prompt) selon les valeurs des variables de configuration
-    # Si PROMPT=NONE, n'applique aucun template: on garde le message utilisateur tel quel.
-    with CONFIG_LOCK:
-        prompt_mode = CONFIG_VARS.get("PROMPT")
-    if isinstance(prompt_mode, str) and prompt_mode.upper() == "NONE":
-        print("[prompt template] PROMPT=NONE: using raw user message (no template)", flush=True)
-    else:
-        # Choisit le template selon la position du message utilisateur :
-        # - 1er message utilisateur -> prompt-do-not-edit.txt (ou prompt-nofilter-do-not-edit.txt si FILTER=NONE)
-        # - sinon -> prompt2-do-not-edit.txt (ou prompt2-nofilter-do-not-edit.txt si FILTER=NONE)
-        try:
-            is_first_user = len(user_msgs) <= 1
-            with CONFIG_LOCK:
-                filter_mode = CONFIG_VARS.get("FILTER")
-            use_nofilter = isinstance(filter_mode, str) and filter_mode.upper() == "NONE"
-            if is_first_user:
-                tmpl_filename = "prompt-nofilter-do-not-edit.txt" if use_nofilter else "prompt-do-not-edit.txt"
-            else:
-                tmpl_filename = "prompt2-nofilter-do-not-edit.txt" if use_nofilter else "prompt2-do-not-edit.txt"
-            tmpl_path = HERE / tmpl_filename
-            template = tmpl_path.read_text(encoding="utf-8")
-            if "{REQUEST}" in template:
-                prompt = template.replace("{REQUEST}", prompt)
-                print(f"[prompt template] applied from {tmpl_path}", flush=True)
-            else:
-                print(f"[prompt template] placeholder {{REQUEST}} missing in {tmpl_path}; using raw prompt", flush=True)
-        except Exception as e:
-            print(f"[prompt template] error: {e}; using raw prompt", flush=True)
-
     # Déclare out_messages, qui contiendra la liste des messages à envoyer à Ollama (API chat), et qui commencera par le message système
     out_messages: List[Dict[str, str]] = []
-
-    # Charger le contenu du fichier system.txt (avec variantes selon CONFIG_VARS['FUN']) en premier message de out_messages
+    
+    # Charger le contenu du fichier system.txt (avec variantes selon CONFIG_VARS['SYSTEM']) en premier message de out_messages
     system_text = ""
     try:
-        # Déterminer le fichier système à utiliser en fonction de la variable FUN
+        # Déterminer le fichier système à utiliser en fonction de la variable SYSTEM
         with CONFIG_LOCK:
-            fun = CONFIG_VARS.get("FUN")
+            system_message = CONFIG_VARS.get("SYSTEM")
         sys_filename = "system.txt"
-        if isinstance(fun, str):
-            if fun.upper() == "DO":
-                sys_filename = "system-DO.txt"
-            elif fun.upper() == "SB":
-                sys_filename = "system-SB.txt"
+        if isinstance(system_message, str):
+            if system_message.upper() == "S1":
+                sys_filename = "system-S1.txt"
+            elif system_message.upper() == "S2":
+                sys_filename = "system-S2.txt"
 
         system_path = HERE / sys_filename
         system_text = system_path.read_text(encoding="utf-8").strip()
@@ -303,8 +290,9 @@ def chat():
             print(f"[system prompt] fallback error: {e2}", flush=True)
     if system_text:
         out_messages.append({"role": "system", "content": system_text})
-
-    # Ajouter à out_messages les messages fournis par le client s'ils existent, et ajoutant à la place du dernier la version recalculée par le template de prompt précédemment (prompt)
+    # out_messages contient désormais le message système
+        
+    # Ajouter à out_messages les messages de type user et assistant fournis par le client
     base_messages: List[Dict[str, Any]] = []
     if isinstance(messages, list):
         base_messages = []
@@ -316,27 +304,25 @@ def chat():
             if role not in ("user", "assistant"):
                 continue
             base_messages.append(m)
-    if base_messages:
-        # Remplacer le contenu du dernier message utilisateur par la version templatisée (prompt)
-        replaced = False
-        for i in range(len(base_messages) - 1, -1, -1):
-            m = base_messages[i]
-            if m.get("role") == "user":
-                base_messages = base_messages.copy()
-                m = dict(m)
-                m["content"] = prompt
-                base_messages[i] = m
-                replaced = True
-                break
-        if not replaced:
-            base_messages.append({"role": "user", "content": prompt})
         out_messages.extend(base_messages)
     else:
         out_messages.append({"role": "user", "content": prompt})
-    # out_messages contient désormais la liste des messages à envoyer :
-    # - les messages précédents, refournis par le prompt, sauf le dernier, qui est celui que l'utilisateur vient de saisir,
-    # - le dernier message transformé par l'application du template contenu dans prompt{,2}{,-nofilter}-do-not-edit.txt (le nom du template dépend des valeurs des variables de configuration).
-        
+    # out_messages contient désormais la liste des messages à envoyer à ollama
+
+
+
+    
+    # Enrichir le début du contexte avec des informations permettant de répondre à la question.
+    print("<<<<<<<<<<<<< enrichir le contexte pour répondre à la question suivante : " + prompt)
+    rag_text = run_rag(json.dumps(out_messages, ensure_ascii=False))
+    # print(json.dumps(out_messages, ensure_ascii=False).encode("utf-8"))
+    out_messages.append({"role": "user", "content": f"Utilise aussi notamment les informations suivantes pour répondre aux différentes questions que je vais te poser: '{rag_text}'"})
+    out_messages.append({"role": "assistant", "content": "C'est noté, je vais aussi utiliser ces informations pour répondre à tes prochaines questions."})
+    print(">>>>>>>>>>>>> réponse : " + rag_text)
+
+
+    
+    
     app.logger.info("Streaming from Ollama %s with model=%s, in_messages=%d, out_messages=%d", ollama_url, model, len(messages), len(out_messages))
 
     enable_stream = bool(app.config.get("ENABLE_STREAM", False))
@@ -482,7 +468,7 @@ def chat():
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Serveur Flask pour le front ChatBot (API de test)."
+        description="Serveur Flask pour le front ChatBot."
     )
     parser.add_argument(
         "-p",
