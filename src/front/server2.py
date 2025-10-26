@@ -13,6 +13,9 @@ from flask import Flask, jsonify, request, Response, stream_with_context
 import requests
 from threading import RLock
 
+model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/chat")
+
 # Répertoire statique pour servir chat.html / chat.css / chat.js
 HERE = Path(__file__).resolve().parent
 app = Flask(
@@ -164,23 +167,16 @@ def chat():
 
     # Récupère JSON si présent, sinon texte brut
     data: Optional[Union[Dict[str, Any], List[Any]]] = request.get_json(silent=True)
-    body_text: Optional[str] = None
-    if data is None:
-        try:
-            body_text = request.get_data(as_text=True)
-        except Exception:
-            body_text = None
 
     # Logging de la requête
     app.logger.info(
-        "POST /api/chat from %s | content-type=%s | json=%s | text-bytes=%s",
+        "POST /api/chat from %s | content-type=%s | json=%s",
         request.remote_addr,
         request.headers.get("Content-Type"),
         "yes" if data is not None else "no",
-        len(body_text.encode("utf-8")) if isinstance(body_text, str) else 0,
     )
 
-    # Construit le prompt (dernier message utilisateur)
+    # Récupère le prompt (dernier message utilisateur)
     messages = []
     if isinstance(data, dict):
         msgs = data.get("messages")
@@ -219,7 +215,7 @@ def chat():
                     yield (json.dumps(err, ensure_ascii=False) + "\n").encode("utf-8")
             return Response(stream_with_context(gen_denied()), content_type="application/x-ndjson; charset=utf-8")
 
-        # Préparer la liste de messages à renvoyer au front sans inclure le message slash courant
+        # Préparer la liste de messages à renvoyer au front sans inclure le message slash courant : client_messages
         client_messages: List[Dict[str, str]] = []
         try:
             for idx, m in enumerate(messages):
@@ -247,15 +243,14 @@ def chat():
 
         return Response(stream_with_context(gen_slash()), content_type="application/x-ndjson; charset=utf-8")
 
-    # Plus de gestion de 'context' transmis par le front (API /api/generate supprimée)
-
+    # Modifie le prompt (prompt) selon les valeurs des variables de configuration
     # Si PROMPT=NONE, n'applique aucun template: on garde le message utilisateur tel quel.
     with CONFIG_LOCK:
         prompt_mode = CONFIG_VARS.get("PROMPT")
     if isinstance(prompt_mode, str) and prompt_mode.upper() == "NONE":
         print("[prompt template] PROMPT=NONE: using raw user message (no template)", flush=True)
     else:
-        # Choisit le template selon la position du message utilisateur:
+        # Choisit le template selon la position du message utilisateur :
         # - 1er message utilisateur -> prompt-do-not-edit.txt (ou prompt-nofilter-do-not-edit.txt si FILTER=NONE)
         # - sinon -> prompt2-do-not-edit.txt (ou prompt2-nofilter-do-not-edit.txt si FILTER=NONE)
         try:
@@ -277,9 +272,10 @@ def chat():
         except Exception as e:
             print(f"[prompt template] error: {e}; using raw prompt", flush=True)
 
-    # Construire la liste de messages pour Ollama (API chat) et injecter le message système
+    # Déclare out_messages, qui contiendra la liste des messages à envoyer à Ollama (API chat), et qui commencera par le message système
     out_messages: List[Dict[str, str]] = []
-    # Charger le contenu du fichier system.txt (avec variantes selon CONFIG_VARS['FUN'])
+
+    # Charger le contenu du fichier system.txt (avec variantes selon CONFIG_VARS['FUN']) en premier message de out_messages
     system_text = ""
     try:
         # Déterminer le fichier système à utiliser en fonction de la variable FUN
@@ -307,7 +303,8 @@ def chat():
             print(f"[system prompt] fallback error: {e2}", flush=True)
     if system_text:
         out_messages.append({"role": "system", "content": system_text})
-    # Partir des messages fournis par le client s'ils existent
+
+    # Ajouter à out_messages les messages fournis par le client s'ils existent, et ajoutant à la place du dernier la version recalculée par le template de prompt précédemment (prompt)
     base_messages: List[Dict[str, Any]] = []
     if isinstance(messages, list):
         base_messages = []
@@ -315,6 +312,7 @@ def chat():
             if not isinstance(m, dict):
                 continue
             role = m.get("role")
+            # ignorer les messages fournis par le client qui ne seraient pas de type user ou assistant
             if role not in ("user", "assistant"):
                 continue
             base_messages.append(m)
@@ -335,10 +333,10 @@ def chat():
         out_messages.extend(base_messages)
     else:
         out_messages.append({"role": "user", "content": prompt})
-
-    model = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
-    ollama_url = os.getenv("OLLAMA_URL", "http://192.168.0.21:11434/api/chat")
-
+    # out_messages contient désormais la liste des messages à envoyer :
+    # - les messages précédents, refournis par le prompt, sauf le dernier, qui est celui que l'utilisateur vient de saisir,
+    # - le dernier message transformé par l'application du template contenu dans prompt{,2}{,-nofilter}-do-not-edit.txt (le nom du template dépend des valeurs des variables de configuration).
+        
     app.logger.info("Streaming from Ollama %s with model=%s, in_messages=%d, out_messages=%d", ollama_url, model, len(messages), len(out_messages))
 
     enable_stream = bool(app.config.get("ENABLE_STREAM", False))
@@ -386,7 +384,7 @@ def chat():
                 curl_cmd = f"curl -N -H 'Content-Type: application/json' -X POST '{ollama_url}' -d '{_sh_single_quote_escape(payload_json)}'"
                 print(f"[ollama curl] {curl_cmd}", flush=True)
 
-                # Informer le front des messages utilisés pour cette requête
+                # Informer le front des messages utilisés pour cette requête. Le message système n'est pas renvoyé au front.
                 try:
                     client_messages = [
                         m for m in current_messages
